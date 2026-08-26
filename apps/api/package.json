@@ -18,7 +18,8 @@
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "import:files": "ts-node --transpile-only scripts/import-files.ts",
     "set:password": "ts-node --transpile-only scripts/set-password.ts",
-    "create:user": "ts-node --transpile-only scripts/create-user.ts"
+    "create:user": "ts-node --transpile-only scripts/create-user.ts",
+    "revoke:role": "ts-node --transpile-only scripts/revoke-role.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
