@@ -3,26 +3,50 @@
 An honest account of what exists in this repository, written so nobody has to
 discover the gaps by running into them.
 
-**Nothing here has been compiled or run.** The machine this was written on has
-no Node.js, npm, Docker or PostgreSQL. Static verification was done instead:
-schema structure, role/permission consistency, and import resolution.
+The system **builds, migrates, seeds and runs**. It was brought up end to end on
+Windows against PostgreSQL 16 and Node 24: both apps typecheck clean, the
+schema migrates, the seed populates roles and permissions, and signing in
+through the browser reaches a working dashboard.
 
-## Verified statically
+## Verified by running it
 
 | Check | Result |
 |---|---|
-| Prisma schema: duplicate models | none |
-| Prisma schema: missing back-relations | none |
-| Prisma schema: unknown field types | none |
-| Prisma schema: ambiguous unnamed relations | none |
-| Role matrix vs 83-permission catalogue | consistent, no contradictions |
-| Relative imports across API source files | all resolve |
-| Relative imports across web source files | all resolve |
-| Non-ASCII characters in source | none |
+| `prisma validate` | schema valid |
+| `prisma migrate deploy` | 46 tables, 28 enums created |
+| Manual SQL (triggers, actor FKs, partial indexes) | all 3 files applied |
+| `tsc --noEmit` on the API | clean |
+| `tsc --noEmit` on the web app | clean |
+| Seed | 83 permissions, 5 roles, 2 branches, 13 categories, 13 sync sources |
+| Append-only trigger: `UPDATE audit_logs` | refused by the database |
+| Append-only trigger: `DELETE audit_logs` | refused by the database |
+| One-active-allocation partial unique indexes | present (assets, lockers, CUG) |
+| Actor foreign keys | 25 constraints present |
+| Login through the browser | reaches the dashboard |
+| `GET /health/ready` | database up |
 
-Not verified, because it needs a toolchain: TypeScript compilation, Prisma
-client generation, runtime behaviour, and the SQL in `migrations/manual`
-actually executing against a live PostgreSQL instance.
+## Bugs found and fixed while bringing it up
+
+1. **`prisma/migrations/manual/` broke `migrate`** - Prisma treats every folder
+   under `migrations/` as a migration. Moved to `prisma/sql/`.
+2. **`psql` rejected Prisma's connection URL** - the `?schema=public` parameter
+   is Prisma-only. The runner now strips unsupported parameters and translates
+   a non-public schema into a `search_path`.
+3. **`this.$on is not a function` on boot** - Prisma's `$extends` returns a
+   Proxy over `PrismaService`, so Nest called the lifecycle hooks twice, and an
+   extended client has no `$on`/`$connect`. The hooks now no-op on the proxy.
+4. **MFA bootstrap deadlock** - with `SUPER_ADMIN` in `MFA_REQUIRED_ROLES`, a
+   fresh deployment could never sign in: login demanded a second factor, and
+   enrolling one demanded a session. Login now returns a short-lived token that
+   unlocks only the enrolment endpoints.
+5. **Audit trail said "Anonymous" for every sign-in** - the request-context
+   scope opens before authentication, so no user was attached yet. `AuditService`
+   now accepts an explicit actor and login supplies it.
+6. Assorted type errors: a non-generic `fail()` in the transform pipeline,
+   `Record<string, unknown>` where Prisma wants `InputJsonValue`, a spread of
+   `never`, a branded `randomUUID()` return type, a `rootDir` violation from the
+   shared package, and a missing `baseUrl` that broke every `@/*` import in the
+   web app.
 
 ## Complete
 
@@ -76,8 +100,14 @@ actually executing against a live PostgreSQL instance.
 
 ## Known risks
 
-1. **First build will surface type errors.** Nothing was compiled. Budget an
-   hour for this.
+1. **Timestamps are `TIMESTAMP(3)` without a time zone.** Prisma writes UTC,
+   but the column's `DEFAULT CURRENT_TIMESTAMP` writes the server's *local*
+   time. Rows created by Prisma are consistent, but anything inserted by raw
+   SQL picks up local time and reads back 5h30m out in IST. For an audit trail
+   that is meant to be authoritative - and for the multi-office requirement -
+   these columns should be `@db.Timestamptz(3)`. Fixing it is a mechanical
+   schema-wide change plus one migration, and is worth doing before real data
+   lands.
 2. **The Prisma client extension** used for soft-delete guarding relies on
    `$allOperations`, which requires Prisma 5.16+. The pinned version (5.22) is
    fine, but if you downgrade, this breaks.

@@ -27,6 +27,13 @@ export interface AuditInput {
   summary?: string;
   refType?: string;
   refId?: string;
+  /**
+   * Who did it, when the ambient request context cannot know.
+   * Sign-in is the motivating case: the context scope is opened before
+   * authentication runs, so at that moment there is no user on the request
+   * and the trail would otherwise read "Anonymous" for every login.
+   */
+  actor?: { userId: string | null; userName: string; userEmail?: string | null; roleKeys?: string[] };
 }
 
 type Json = Record<string, unknown>;
@@ -82,6 +89,12 @@ export class AuditService {
    */
   async record(input: AuditInput): Promise<void> {
     const ctx = RequestContextStore.get();
+    const actor = {
+      userId: input.actor?.userId ?? ctx.userId,
+      userName: input.actor?.userName ?? ctx.userName,
+      userEmail: input.actor?.userEmail ?? ctx.userEmail,
+      roleKeys: input.actor?.roleKeys ?? ctx.roleKeys,
+    };
     const { changed, old, new: next } =
       input.oldValue || input.newValue
         ? this.diff(input.oldValue, input.newValue)
@@ -94,10 +107,10 @@ export class AuditService {
           entityType: input.entityType,
           entityId: input.entityId ?? null,
           entityLabel: input.entityLabel ?? null,
-          userId: ctx.userId,
-          userName: ctx.userName,
-          userEmail: ctx.userEmail,
-          roleKeys: ctx.roleKeys,
+          userId: actor.userId,
+          userName: actor.userName,
+          userEmail: actor.userEmail,
+          roleKeys: actor.roleKeys,
           ipAddress: ctx.ipAddress,
           userAgent: ctx.userAgent,
           requestId: ctx.requestId,

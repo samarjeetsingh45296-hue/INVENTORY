@@ -13,7 +13,11 @@ export interface TransformResult<T = unknown> {
 }
 
 const ok = <T>(value: T): TransformResult<T> => ({ ok: true, value });
-const fail = (error: string): TransformResult => ({ ok: false, value: null, error });
+const fail = <T = never>(error: string): TransformResult<T> => ({
+  ok: false,
+  value: null,
+  error,
+});
 
 const TRUE_WORDS = new Set(['y', 'yes', 'true', '1', 'active', 'working', 'ok', 'available']);
 const FALSE_WORDS = new Set(['n', 'no', 'false', '0', 'inactive', 'na', 'n/a', '-']);

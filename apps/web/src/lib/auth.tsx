@@ -17,7 +17,12 @@ interface AuthState {
   user: Principal | null;
   loading: boolean;
   /** Returns 'MFA_REQUIRED' when a second factor is still needed. */
-  login: (email: string, password: string) => Promise<'OK' | 'MFA_REQUIRED'>;
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<'OK' | 'MFA_REQUIRED' | 'MFA_ENROLMENT_REQUIRED'>;
+  /** Set when the account must enrol a second factor before it can sign in. */
+  enrolmentNotice: string | null;
   verifyMfa: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   can: (...permissions: string[]) => boolean;
@@ -30,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Principal | null>(null);
   const [loading, setLoading] = useState(true);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [enrolmentNotice, setEnrolmentNotice] = useState<string | null>(null);
   const router = useRouter();
 
   // Restore the session on first paint using the stored refresh token.
@@ -64,6 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (res.status === 'MFA_REQUIRED') {
       setChallengeToken(res.challengeToken);
       return 'MFA_REQUIRED' as const;
+    }
+
+    if (res.status === 'MFA_ENROLMENT_REQUIRED') {
+      // The password was right, but this role cannot hold a session until a
+      // second factor exists. The token returned unlocks only the enrolment
+      // endpoints.
+      tokenStore.setAccess(res.enrolmentToken);
+      setEnrolmentNotice(res.message);
+      return 'MFA_ENROLMENT_REQUIRED' as const;
     }
 
     tokenStore.setAccess(res.accessToken);
@@ -104,12 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       verifyMfa,
       logout,
+      enrolmentNotice,
       can: (...permissions) =>
         !!user && permissions.every((p) => user.permissions.includes(p)),
       canAny: (...permissions) =>
         !!user && permissions.some((p) => user.permissions.includes(p)),
     }),
-    [user, loading, login, verifyMfa, logout],
+    [user, loading, login, verifyMfa, logout, enrolmentNotice],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,8 +4,10 @@
     "outDir": "dist",
     "rootDir": ".",
     "baseUrl": ".",
+    // @inventory/shared deliberately has no path mapping: it resolves through
+    // the pnpm workspace link to packages/shared/dist, which keeps it inside
+    // this project's rootDir. Build the shared package before the API.
     "paths": {
-      "@inventory/shared": ["../../packages/shared/src/index.ts"],
       "src/*": ["src/*"]
     },
     "strictPropertyInitialization": false

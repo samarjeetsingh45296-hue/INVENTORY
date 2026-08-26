@@ -14,15 +14,14 @@ or audit records.
 ## Status
 
 This repository contains the full data model plus a working backend and
-frontend for the core of the system. **Nothing in it has been executed or
-type-checked**, because the machine it was written on has no Node.js, npm,
-Docker or PostgreSQL installed - only Python and git. Expect to fix a small
-number of compile errors on the first `pnpm build`.
+frontend for the core of the system. It **builds, migrates, seeds and runs**:
+brought up end to end against PostgreSQL 16 on Node 24, with both apps
+type-checking clean and sign-in reaching a working dashboard.
 
-What has been verified: the Prisma schema is structurally consistent (no
-missing back-relations, no dangling types, no duplicate models), the role
-matrix matches the permission catalogue exactly, and every relative import
-across all source files resolves to a real file.
+The database-level guarantees are not just claimed, they are tested: the
+append-only triggers demonstrably refuse `UPDATE` and `DELETE` on the audit
+trail, the partial unique indexes enforcing one active allocation per asset are
+in place, and 25 actor foreign keys are installed.
 
 See [docs/STATUS.md](docs/STATUS.md) for a precise, module-by-module account of
 what is built, what is partial, and what is not started.
@@ -170,7 +169,7 @@ apps/
   api/                   NestJS API
     prisma/
       schema.prisma      46 models, 28 enums - the master data model
-      migrations/manual/ append-only triggers, actor FKs, partial indexes
+      sql/               append-only triggers, actor FKs, partial indexes
       seed.ts            permissions, roles, org, categories, sync sources
     src/
       common/            guards, interceptors, request context, Prisma client

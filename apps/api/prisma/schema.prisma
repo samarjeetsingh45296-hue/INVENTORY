@@ -334,7 +334,7 @@ enum LocationKind {
 //  rather than Prisma relations. Wiring a relation for each would require
 //  ~150 back-references on User and make the model unusable. Referential
 //  integrity for these columns is added at the database level in
-//  migrations/manual/01_actor_fks.sql, and they are resolved in the API by
+//  prisma/sql/01_actor_fks.sql, and they are resolved in the API by
 //  ActorResolverService. Business relations are always modelled properly.
 // ============================================================================
 
@@ -991,7 +991,7 @@ model AssetAllocation {
 }
 
 /// Append-only. Nothing in the application is permitted to UPDATE or DELETE a
-/// row here - enforced by a database trigger (see migrations/manual).
+/// row here - enforced by a database trigger (see prisma/sql).
 model AssetEvent {
   id          String   @id @default(uuid()) @db.Uuid
   assetId     String   @db.Uuid

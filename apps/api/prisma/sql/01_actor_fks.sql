@@ -7,7 +7,7 @@
 -- referenced by history. Users are soft-deleted anyway.
 --
 -- Run after every `prisma migrate deploy`:
---   psql "$DATABASE_URL" -f prisma/migrations/manual/01_actor_fks.sql
+--   psql "$DATABASE_URL" -f prisma/sql/01_actor_fks.sql
 -- ---------------------------------------------------------------------------
 
 DO $$

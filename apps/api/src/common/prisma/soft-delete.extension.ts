@@ -13,7 +13,7 @@ export const SOFT_DELETE_MODELS: ReadonlySet<string> = new Set(
 
 /**
  * Models that are pure history. Nothing may ever update or delete them.
- * The database enforces this too (migrations/manual/02_append_only.sql);
+ * The database enforces this too (prisma/sql/02_append_only.sql);
  * this check simply produces a readable error before the query is sent.
  */
 export const APPEND_ONLY_MODELS: ReadonlySet<string> = new Set([

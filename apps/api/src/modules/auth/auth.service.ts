@@ -34,7 +34,8 @@ export interface TokenPair {
 
 export type LoginResult =
   | ({ status: 'AUTHENTICATED' } & TokenPair & { mustChangePassword: boolean })
-  | { status: 'MFA_REQUIRED'; challengeToken: string };
+  | { status: 'MFA_REQUIRED'; challengeToken: string }
+  | { status: 'MFA_ENROLMENT_REQUIRED'; enrolmentToken: string; message: string };
 
 @Injectable()
 export class AuthService {
@@ -111,9 +112,27 @@ export class AuthService {
     }
 
     if (mfaMandatory) {
-      throw new ForbiddenException(
-        'Your role requires multi-factor authentication. Ask a Super Admin to enrol your device.',
+      // The password was correct, but this role may not hold a session without
+      // a second factor and none is enrolled yet. Refusing outright would
+      // deadlock a fresh deployment: enrolling requires a token, and a token
+      // requires enrolment. Issue one that unlocks ONLY the enrolment
+      // endpoints - it carries mfa:false, so JwtAuthGuard rejects it
+      // everywhere except routes marked @SkipMfaCheck().
+      const enrolmentToken = await this.jwt.signAsync(
+        { sub: user.id, email: user.email, sid: randomUUID(), mfa: false },
+        {
+          secret: this.config.get<string>('env.JWT_ACCESS_SECRET'),
+          expiresIn: '10m',
+        },
       );
+      await this.recordLogin(user.id, normalised, false, 'MFA_ENROLMENT_REQUIRED', ctx);
+      return {
+        status: 'MFA_ENROLMENT_REQUIRED',
+        enrolmentToken,
+        message:
+          'Your role requires multi-factor authentication. Set up your authenticator ' +
+          'app now to finish signing in.',
+      };
     }
 
     const tokens = await this.issueTokens(user.id, user.email, true, ctx);
@@ -235,6 +254,7 @@ export class AuthService {
       entityId: userId,
       summary: 'Signed out',
     });
+
   }
 
   /** Ends every session for a user - used when a role is revoked or on lockout. */
@@ -250,7 +270,7 @@ export class AuthService {
     email: string,
     mfaVerified: boolean,
     ctx: LoginContext,
-    familyId = randomUUID(),
+    familyId: string = randomUUID(),
   ): Promise<TokenPair> {
     const sid = randomUUID();
     const accessTtl = this.config.get<string>('env.JWT_ACCESS_TTL') ?? '15m';
@@ -436,16 +456,26 @@ export class AuthService {
     ctx: LoginContext,
     mfaUsed = false,
   ): Promise<void> {
-    await this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: { lastLoginAt: new Date(), lastLoginIp: ctx.ipAddress },
+      include: { roles: { where: { revokedAt: null }, include: { role: true } } },
     });
     await this.recordLogin(userId, email, true, null, ctx, mfaUsed);
     await this.audit.record({
       action: AuditAction.LOGIN,
       entityType: 'User',
       entityId: userId,
+      entityLabel: user.displayName,
       summary: mfaUsed ? 'Signed in with MFA' : 'Signed in',
+      // Sign-in happens on a public route, so the ambient context has no user
+      // yet. Name the actor explicitly or the trail reads "Anonymous".
+      actor: {
+        userId,
+        userName: user.displayName,
+        userEmail: user.email,
+        roleKeys: user.roles.map((r) => r.role.key),
+      },
     });
   }
 

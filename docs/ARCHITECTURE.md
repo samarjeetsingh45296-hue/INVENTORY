@@ -49,7 +49,7 @@ sync engine has no idea which one it is talking to.
 Modelling each as a Prisma relation would require roughly 150 back-references
 on `User`, which makes the model unusable and every query slower to reason
 about. They are plain `uuid` scalars, and referential integrity is added at the
-database level in `migrations/manual/01_actor_fks.sql` with `ON DELETE
+database level in `prisma/sql/01_actor_fks.sql` with `ON DELETE
 RESTRICT` - a user row can never be hard-deleted while history still points at
 it. Business relations are always modelled properly.
 

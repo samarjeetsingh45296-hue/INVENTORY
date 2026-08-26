@@ -4,6 +4,6 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [{ "include": "../prisma/migrations/manual/*.sql", "outDir": "dist/prisma" }]
+    "assets": [{ "include": "../prisma/sql/*.sql", "outDir": "dist/prisma" }]
   }
 }

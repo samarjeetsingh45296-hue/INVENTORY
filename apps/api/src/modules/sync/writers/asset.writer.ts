@@ -3,6 +3,7 @@ import {
   AssetCondition,
   AssetEventType,
   AssetStatus,
+  Prisma,
   SourceType,
 } from '@prisma/client';
 import {
@@ -134,7 +135,7 @@ export class AssetWriter implements EntityWriter {
     const updated = await tx.asset.update({
       where: { id: existing.id },
       data: {
-        ...(safeFields as never),
+        ...(safeFields as Prisma.AssetUncheckedUpdateInput),
         updatedById: ctx.actorUserId,
         sourceRef: ctx.sourceRef,
       },
@@ -146,8 +147,8 @@ export class AssetWriter implements EntityWriter {
           assetId: existing.id,
           eventType: AssetEventType.UPDATED,
           summary: `Updated from ${ctx.sourceRef}: ${Object.keys(safeFields).join(', ')}`,
-          fromValue: pick(existing.snapshot, Object.keys(safeFields)),
-          toValue: safeFields as object,
+          fromValue: pick(existing.snapshot, Object.keys(safeFields)) as Prisma.InputJsonValue,
+          toValue: safeFields as Prisma.InputJsonValue,
           refType: 'SyncRun',
           refId: ctx.runId,
           actorUserId: ctx.actorUserId,

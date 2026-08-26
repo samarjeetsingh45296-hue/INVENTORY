@@ -197,8 +197,8 @@ export class AssetsService {
               ? AssetEventType.LOCATION_CHANGED
               : AssetEventType.UPDATED,
           summary: `${changed.join(', ')} updated by ${principal.displayName}`,
-          fromValue: pick(before as never, changed),
-          toValue: pick(after as never, changed),
+          fromValue: pick(before as never, changed) as Prisma.InputJsonValue,
+          toValue: pick(after as never, changed) as Prisma.InputJsonValue,
           actorUserId: principal.userId,
           actorName: principal.displayName,
         },

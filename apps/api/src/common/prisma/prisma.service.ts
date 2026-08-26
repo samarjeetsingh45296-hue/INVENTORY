@@ -29,6 +29,12 @@ export class PrismaService
   }
 
   async onModuleInit(): Promise<void> {
+    // Nest calls lifecycle hooks on every provider, and the PRISMA provider is
+    // a Proxy that $extends built over *this* instance - so this hook fires
+    // twice. An extended client deliberately does not expose $on, $connect or
+    // $disconnect, so the second call must be a no-op rather than a crash.
+    if (typeof (this as { $on?: unknown }).$on !== 'function') return;
+
     (this as any).$on('warn', (e: { message: string }) =>
       this.logger.warn(e.message),
     );
@@ -41,6 +47,8 @@ export class PrismaService
   }
 
   async onModuleDestroy(): Promise<void> {
+    // Same reason as onModuleInit: only the real client can disconnect.
+    if (typeof (this as { $disconnect?: unknown }).$disconnect !== 'function') return;
     await this.$disconnect();
   }
 

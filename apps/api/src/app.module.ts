@@ -28,6 +28,10 @@ import { HealthModule } from './modules/health/health.module';
       isGlobal: true,
       load: [configuration],
       cache: true,
+      // One .env at the repo root serves the whole workspace. The API's cwd is
+      // apps/api, so the root file is two levels up; the local paths are
+      // fallbacks for a container where the app is deployed on its own.
+      envFilePath: ['../../.env', '../.env', '.env'],
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
