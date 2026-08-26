@@ -22,6 +22,12 @@
 # Shell scripts must keep LF even on Windows, or they will not run.
 *.sh    text eol=lf
 
+# Windows batch files are the mirror image: cmd.exe mis-parses labels and goto
+# in an LF-only file, so these must stay CRLF even when checked out on Linux.
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+
 # Collapse lockfile noise in pull request diffs.
 pnpm-lock.yaml -diff
 package-lock.json -diff

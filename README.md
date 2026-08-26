@@ -84,6 +84,13 @@ database guarantee rather than a convention.
 
 The seed prints a generated Super Admin password **once**. Write it down.
 
+If that password was lost, or you need to set one for any account, run
+`tools\set-password.cmd` (double-click it, or run it from any Command Prompt).
+It locates Node itself, so it works even in a shell opened before Node was
+installed. The password is typed at a prompt with echo suppressed - never as a
+command-line argument, where it would land in shell history and the process
+list.
+
 ### 5. Run it
 
 ```bash
