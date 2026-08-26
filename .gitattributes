@@ -1,0 +1,27 @@
+# Normalise line endings.
+#
+# core.autocrlf is on by default on Windows, but .editorconfig asks for LF.
+# Without this file, every checkout on a different OS produces a diff on every
+# line. Declaring it here makes the rule travel with the repository instead of
+# depending on each developer's local git config.
+* text=auto eol=lf
+
+# Binary files git must never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.dump  binary
+*.woff  binary
+*.woff2 binary
+
+# Shell scripts must keep LF even on Windows, or they will not run.
+*.sh    text eol=lf
+
+# Collapse lockfile noise in pull request diffs.
+pnpm-lock.yaml -diff
+package-lock.json -diff
