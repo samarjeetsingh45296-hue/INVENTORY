@@ -16,7 +16,8 @@
     "prisma:manual": "node scripts/run-manual-migrations.js",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
-    "import:files": "ts-node --transpile-only scripts/import-files.ts"
+    "import:files": "ts-node --transpile-only scripts/import-files.ts",
+    "set:password": "ts-node --transpile-only scripts/set-password.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

@@ -42,7 +42,25 @@ through the browser reaches a working dashboard.
 5. **Audit trail said "Anonymous" for every sign-in** - the request-context
    scope opens before authentication, so no user was attached yet. `AuditService`
    now accepts an explicit actor and login supplies it.
-6. Assorted type errors: a non-generic `fail()` in the transform pipeline,
+6. **Every page rendered completely unstyled** - the worst kind of bug,
+   because nothing errored. Next resolves `postcss.config.mjs` relative to the
+   project directory, but the `tailwindcss` plugin resolves *its* config
+   relative to `process.cwd()`. Launched as `next dev apps/web` from the repo
+   root, Tailwind found no config at the root, fell back to its defaults with
+   `content: []`, and emitted a stylesheet with the preflight reset and not one
+   utility class - 12KB of CSS that looked plausible and styled nothing. Fixed
+   twice over: `postcss.config.mjs` now names the config by absolute path, and
+   `tailwind.config.ts` anchors its content globs to `__dirname` instead of the
+   working directory. Correct output is 27KB.
+7. **`nest build` emitted `dist/src/main.js`, not `dist/main.js`** - `rootDir`
+   was `.` and the build included `prisma/` and `scripts/`, pushing the output
+   down a level, so both `package.json`'s `start` script and the Dockerfile
+   `CMD` pointed at a path that could never exist. `rootDir` is now `src`; the
+   seed and CLI scripts run through ts-node and do not need compiling.
+8. **The CLI scripts could not find `DATABASE_URL`** - they run outside Nest, so
+   `ConfigModule` never loads, and `dotenv` is not resolvable from `apps/api`
+   under pnpm's strict layout. Added a small dependency-free `load-env.ts`.
+9. Assorted type errors: a non-generic `fail()` in the transform pipeline,
    `Record<string, unknown>` where Prisma wants `InputJsonValue`, a spread of
    `never`, a branded `randomUUID()` return type, a `rootDir` violation from the
    shared package, and a missing `baseUrl` that broke every `@/*` import in the

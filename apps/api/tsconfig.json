@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "src",
     "baseUrl": ".",
     // @inventory/shared deliberately has no path mapping: it resolves through
     // the pnpm workspace link to packages/shared/dist, which keeps it inside
@@ -12,5 +12,5 @@
     },
     "strictPropertyInitialization": false
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts", "scripts/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

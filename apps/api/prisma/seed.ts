@@ -7,6 +7,7 @@
  *
  *   pnpm --filter @inventory/api prisma:seed
  */
+import '../scripts/load-env'; // must come first: populates process.env
 import { PrismaClient, SourceType, SyncMode, SyncSchedule } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
