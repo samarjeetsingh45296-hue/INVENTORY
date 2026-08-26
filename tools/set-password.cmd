@@ -46,7 +46,7 @@ echo.
 if "%RC%"=="0" (
   echo Done. Sign in at http://localhost:3000/login
 ) else (
-  echo That did not work - see the message above.
+  echo FAILED - nothing was changed. See the message above.
 )
 echo.
 pause

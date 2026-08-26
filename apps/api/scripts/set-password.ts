@@ -24,7 +24,14 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-/** Reads a line with echo suppressed. */
+/**
+ * Reads a line with echo suppressed.
+ *
+ * Rejects if stdin closes before an answer arrives. Without that, piped or
+ * redirected input leaves the callback never firing: the promise stays
+ * pending, the event loop drains, and node exits 0 having done nothing, while
+ * every caller reads that zero as success.
+ */
 function promptHidden(question: string): Promise<string> {
   let muted = false;
   const mutedOut = new Writable({
@@ -36,8 +43,15 @@ function promptHidden(question: string): Promise<string> {
 
   const rl = createInterface({ input: stdin, output: mutedOut, terminal: true });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    let answered = false;
+
+    rl.on('close', () => {
+      if (!answered) reject(new Error('Input ended before a password was entered.'));
+    });
+
     rl.question(question, (answer) => {
+      answered = true;
       rl.close();
       stdout.write('\n');
       resolve(answer);
@@ -75,6 +89,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // A hidden prompt needs a real terminal. Refuse up front rather than
+  // appearing to work when input is piped or redirected.
+  if (!stdin.isTTY) {
+    console.error(
+      'This tool must be run interactively, so the password can be typed ' +
+        'without being echoed.',
+    );
+    console.error('Run it in a Command Prompt, or double-click tools/set-password.cmd');
+    process.exit(1);
+  }
+
   const password = await promptHidden(`New password for ${email}: `);
   const again = await promptHidden('Confirm: ');
 
@@ -105,6 +130,16 @@ async function main(): Promise<void> {
     where: { userId: user.id, revokedAt: null },
     data: { revokedAt: new Date(), revokedReason: 'PASSWORD_RESET_CLI' },
   });
+
+  // Confirm the write landed before claiming success.
+  const confirmed = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { passwordChangedAt: true },
+  });
+  if (!confirmed?.passwordChangedAt) {
+    console.error('The password did not save. Nothing was changed.');
+    process.exit(1);
+  }
 
   console.log(`Password updated for ${email}.`);
   console.log(`${revoked.count} existing session(s) revoked.`);
