@@ -1,0 +1,22 @@
+{
+  "name": "inventory-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Asset & Inventory Management System - database is the permanent source of truth; Google Sheets are import/sync only.",
+  "engines": { "node": ">=20.11.0", "pnpm": ">=9" },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "build": "pnpm --filter \"./packages/*\" build && pnpm --filter \"./apps/*\" build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @inventory/api prisma:generate",
+    "db:migrate": "pnpm --filter @inventory/api prisma:migrate",
+    "db:seed": "pnpm --filter @inventory/api prisma:seed",
+    "db:studio": "pnpm --filter @inventory/api prisma:studio",
+    "import:files": "pnpm --filter @inventory/api import:files",
+    "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker/docker-compose.yml down"
+  }
+}

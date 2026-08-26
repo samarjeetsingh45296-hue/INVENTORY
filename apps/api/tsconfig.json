@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@inventory/shared": ["../../packages/shared/src/index.ts"],
+      "src/*": ["src/*"]
+    },
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*.ts", "prisma/**/*.ts", "scripts/**/*.ts"]
+}

@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Secrets - never commit
+secrets/
+*.pem
+*.key
+google-service-account*.json
+
+# Runtime artefacts
+logs/
+*.log
+backups/
+uploads/
+tmp/
+
+# Source data drops (may contain employee PII)
+data/raw/*
+!data/raw/.gitkeep
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

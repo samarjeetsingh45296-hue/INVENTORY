@@ -1,0 +1,1869 @@
+// ============================================================================
+//  INVENTORY SUITE - master schema
+//
+//  GOVERNING RULE: this database is the permanent source of truth.
+//  Google Sheets are an *import surface* only. Nothing here is ever deleted
+//  as a side effect of a sheet being deleted, renamed or emptied; the sync
+//  engine is strictly additive/uppdating and never issues deletes.
+//
+//  Conventions used throughout:
+//    * uuid primary keys           - safe to merge across branches/offices
+//    * deletedAt / deletedById     - soft delete; nothing is physically removed
+//    * createdById / updatedById   - who touched the row
+//    * sourceType / sourceRef      - provenance of every imported row
+//    * *_history / *Event tables   - append-only, never updated or deleted
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, pg_trgm, unaccent]
+}
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+enum AssetStatus {
+  IN_STOCK
+  ALLOCATED
+  IN_REPAIR
+  IN_TRANSIT
+  RESERVED
+  LOST
+  STOLEN
+  SCRAPPED
+  RETIRED
+  DISPOSED
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+  BEYOND_REPAIR
+  UNKNOWN
+}
+
+enum OwnershipType {
+  OWNED
+  LEASED
+  RENTED
+  VENDOR_SUPPLIED
+  EMPLOYEE_OWNED
+}
+
+enum AllocationStatus {
+  ACTIVE
+  RETURNED
+  TRANSFERRED
+  LOST_IN_CUSTODY
+  CANCELLED
+}
+
+enum AllocationHolderType {
+  EMPLOYEE
+  DEPARTMENT
+  WORKSTATION
+  LOCATION
+  VENDOR
+}
+
+enum AssetEventType {
+  CREATED
+  IMPORTED
+  UPDATED
+  ALLOCATED
+  RETURNED
+  TRANSFERRED
+  SENT_FOR_REPAIR
+  REPAIR_COMPLETED
+  REPAIR_FAILED
+  DAMAGE_REPORTED
+  CONDITION_CHANGED
+  STATUS_CHANGED
+  LOCATION_CHANGED
+  AUDIT_VERIFIED
+  AUDIT_MISSING
+  SCRAPPED
+  ARCHIVED
+  RESTORED
+  COMMENT
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_PROBATION
+  ON_LEAVE
+  ON_NOTICE
+  RESIGNED
+  TERMINATED
+  ABSCONDED
+  RETIRED
+}
+
+enum RepairStatus {
+  REPORTED
+  APPROVED
+  SENT_TO_VENDOR
+  IN_PROGRESS
+  AWAITING_PARTS
+  REPAIRED
+  RETURNED_TO_STOCK
+  UNREPAIRABLE
+  CANCELLED
+}
+
+enum RequestType {
+  NEW_ASSET
+  REPLACEMENT
+  REPAIR
+  RETURN
+  ACCESSORY
+  WORKSPACE
+  LOCKER
+  CUG
+  HEADPHONE
+  OTHER
+}
+
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  MANAGER_APPROVED
+  ADMIN_APPROVED
+  REJECTED
+  FULFILLED
+  CANCELLED
+}
+
+enum ChangeRequestType {
+  ASSET_DELETE
+  BULK_UPDATE
+  INVENTORY_ADJUSTMENT
+  STOCK_REDUCTION
+  ALLOCATION_OVERRIDE
+  DATA_IMPORT
+  PERMANENT_DELETE
+  ROLE_CHANGE
+}
+
+enum ApprovalStage {
+  MANAGER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+  CANCELLED
+  EXPIRED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  SOFT_DELETE
+  RESTORE
+  HARD_DELETE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  MFA_ENABLED
+  MFA_DISABLED
+  ROLE_ASSIGNED
+  ROLE_REVOKED
+  PERMISSION_CHANGED
+  EXPORT
+  IMPORT
+  SYNC
+  BACKUP
+  RESTORE_BACKUP
+  APPROVE
+  REJECT
+  ALLOCATE
+  RETURN
+  TRANSFER
+  VIEW_SENSITIVE
+  SETTING_CHANGED
+}
+
+enum SourceType {
+  MANUAL
+  GOOGLE_SHEET
+  EXCEL_UPLOAD
+  CSV_UPLOAD
+  API
+  SEED
+}
+
+enum SyncMode {
+  MANUAL
+  SCHEDULED
+  ONE_TIME_MIGRATION
+}
+
+enum SyncSchedule {
+  OFF
+  HOURLY
+  SIX_HOURLY
+  DAILY
+}
+
+enum SyncStatus {
+  PENDING
+  RUNNING
+  AWAITING_CONFIRMATION
+  SUCCESS
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum SyncRowStatus {
+  NEW
+  IMPORTED
+  UPDATED
+  UNCHANGED
+  DUPLICATE
+  INVALID
+  CONFLICT
+  SKIPPED
+}
+
+enum BackupType {
+  DAILY
+  WEEKLY
+  MANUAL
+  PRE_MIGRATION
+  PRE_RESTORE
+}
+
+enum BackupFormat {
+  PG_DUMP
+  EXCEL
+  CSV
+}
+
+enum BackupStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PRUNED
+}
+
+enum WorkstationStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  UNDER_MAINTENANCE
+  DECOMMISSIONED
+}
+
+enum LockerStatus {
+  AVAILABLE
+  ALLOCATED
+  UNDER_MAINTENANCE
+  DAMAGED
+  RETIRED
+}
+
+enum CugStatus {
+  AVAILABLE
+  ALLOCATED
+  SUSPENDED
+  BARRED
+  DEACTIVATED
+  LOST
+}
+
+enum StockTxnType {
+  OPENING_BALANCE
+  PURCHASE_IN
+  ISSUE_OUT
+  RETURN_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  DAMAGE_OUT
+  SCRAP_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum NotificationType {
+  ASSET_ALLOCATED
+  ASSET_RETURN_DUE
+  REPAIR_UPDATE
+  APPROVAL_PENDING
+  APPROVAL_DECIDED
+  REQUEST_UPDATE
+  SYNC_COMPLETED
+  SYNC_FAILED
+  BACKUP_FAILED
+  WARRANTY_EXPIRING
+  AMC_EXPIRING
+  STOCK_LOW
+  SYSTEM
+}
+
+enum LocationKind {
+  CAMPUS
+  BUILDING
+  WING
+  FLOOR
+  ROOM
+  ZONE
+  STORE
+}
+
+// ============================================================================
+//  NOTE ON ACTOR COLUMNS
+//  createdById / updatedById / deletedById are stored as plain uuid scalars
+//  rather than Prisma relations. Wiring a relation for each would require
+//  ~150 back-references on User and make the model unusable. Referential
+//  integrity for these columns is added at the database level in
+//  migrations/manual/01_actor_fks.sql, and they are resolved in the API by
+//  ActorResolverService. Business relations are always modelled properly.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+//  ORGANISATION / LOCATION HIERARCHY
+//  A tree, so new offices, branches, contact centres and wings can be added
+//  forever without a schema change.
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  legalName   String?
+  logoUrl     String?
+  settings    Json     @default("{}")
+
+  branches    Branch[]
+  departments Department[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@index([deletedAt])
+  @@map("organizations")
+}
+
+model Branch {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  code           String
+  name           String
+  siteType       String   @default("CAMPUS")
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  country        String   @default("India")
+  pincode        String?
+  timezone       String   @default("Asia/Kolkata")
+
+  locations      Location[]
+  employees      Employee[]
+  assets         Asset[]
+  workstations   Workstation[]
+  lockers        Locker[]
+  cugConnections CugConnection[]
+  stockItems     StockItem[]
+  userScopes     UserScope[]
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@unique([organizationId, code])
+  @@index([deletedAt])
+  @@map("branches")
+}
+
+/// Self-referencing tree: Campus / Building / Wing / Floor / Room / Zone.
+/// The "Wing Wise Inventory" workbook maps onto nodes with kind = WING.
+model Location {
+  id          String   @id @default(uuid()) @db.Uuid
+  branchId    String   @db.Uuid
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  parentId    String?  @db.Uuid
+  parent      Location?  @relation("LocationTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Location[] @relation("LocationTree")
+
+  kind        LocationKind
+  code        String
+  name        String
+  /// Materialised path, e.g. "PU/ADMIN-BLOCK/A-WING/2F". Maintained by the
+  /// service layer so subtree queries are one indexed prefix scan.
+  path        String   @default("")
+  depth       Int      @default(0)
+  capacity    Int?
+  notes       String?
+
+  assets       Asset[]
+  workstations Workstation[]
+  lockers      Locker[]
+  stockItems   StockItem[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@unique([branchId, code])
+  @@index([path])
+  @@index([parentId])
+  @@index([kind])
+  @@index([deletedAt])
+  @@map("locations")
+}
+
+model Department {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  code           String
+  name           String
+  parentId       String?  @db.Uuid
+  parent         Department?  @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children       Department[] @relation("DepartmentTree")
+
+  employees      Employee[]
+  assetRequests  AssetRequest[]
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@unique([organizationId, code])
+  @@index([deletedAt])
+  @@map("departments")
+}
+
+model Designation {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  /// Lower number = more senior. Used to resolve the approval chain.
+  grade       Int?
+
+  employees   Employee[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@map("designations")
+}
+
+// ---------------------------------------------------------------------------
+//  PEOPLE
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id               String   @id @default(uuid()) @db.Uuid
+  /// Payroll / HRMS code. Unique per organisation and the natural key the
+  /// sheet importer de-duplicates on.
+  employeeCode     String
+  organizationId   String   @db.Uuid
+
+  firstName        String
+  lastName         String?
+  /// Denormalised for fast search; recomputed by the service layer.
+  fullName         String
+  officialEmail    String?
+  personalEmail    String?
+  phone            String?
+  alternatePhone   String?
+  gender           String?
+  bloodGroup       String?
+  dateOfBirth      DateTime? @db.Date
+  dateOfJoining    DateTime? @db.Date
+  dateOfLeaving    DateTime? @db.Date
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  employmentType   String?
+
+  branchId         String?  @db.Uuid
+  branch           Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  departmentId     String?  @db.Uuid
+  department       Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  designationId    String?  @db.Uuid
+  designation      Designation? @relation(fields: [designationId], references: [id], onDelete: Restrict)
+
+  reportingManagerId String?  @db.Uuid
+  reportingManager   Employee?  @relation("EmployeeManager", fields: [reportingManagerId], references: [id], onDelete: Restrict)
+  directReports      Employee[] @relation("EmployeeManager")
+
+  /// Contact-centre specific, optional elsewhere.
+  process          String?
+  shift            String?
+  seatNumber       String?
+
+  photoUrl         String?
+  address          String?
+  remarks          String?
+
+  user                   User?
+  allocations            AssetAllocation[]
+  workstationAllocations WorkstationAllocation[]
+  lockerAllocations      LockerAllocation[]
+  cugAllocations         CugAllocation[]
+  repairsReported        RepairTicket[]  @relation("RepairReporter")
+  assetRequests          AssetRequest[]
+  damageReports          DamageReport[]
+
+  /// Provenance: which workbook, tab and row this employee first arrived from.
+  sourceType       SourceType @default(MANUAL)
+  sourceRef        String?
+  externalRefs     Json     @default("{}")
+
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+  createdById      String?  @db.Uuid
+  updatedById      String?  @db.Uuid
+  deletedById      String?  @db.Uuid
+
+  @@unique([organizationId, employeeCode])
+  @@index([fullName])
+  @@index([officialEmail])
+  @@index([phone])
+  @@index([branchId, departmentId])
+  @@index([employmentStatus])
+  @@index([deletedAt])
+  @@map("employees")
+}
+
+// ---------------------------------------------------------------------------
+//  AUTH & RBAC
+// ---------------------------------------------------------------------------
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  email              String   @unique
+  passwordHash       String
+  displayName        String
+
+  employeeId         String?  @unique @db.Uuid
+  employee           Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  passwordChangedAt  DateTime?
+
+  mfaEnabled         Boolean  @default(false)
+  /// TOTP secret, AES-256-GCM encrypted at rest. Never leaves the server.
+  mfaSecretEnc       String?
+  /// Hashed single-use recovery codes.
+  mfaRecoveryCodes   Json     @default("[]")
+
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  failedLoginCount   Int      @default(0)
+  lockedUntil        DateTime?
+
+  roles              UserRole[]
+  scopes             UserScope[]
+  refreshTokens      RefreshToken[]
+  loginHistory       LoginHistory[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  approvalDecisions  ApprovalStep[] @relation("ApprovalDecider")
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+  createdById        String?  @db.Uuid
+  updatedById        String?  @db.Uuid
+  deletedById        String?  @db.Uuid
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// SUPER_ADMIN | HR_ADMIN | INVENTORY_MANAGER | TEAM_LEADER | EMPLOYEE
+  key         String   @unique
+  name        String
+  description String?
+  /// Lower = more powerful. Nobody may grant a role ranked at or above their own.
+  rank        Int      @default(100)
+  /// System roles cannot be renamed or removed, only re-permissioned.
+  isSystem    Boolean  @default(false)
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Dot notation, e.g. "asset.allocate", "user.delete", "audit.read".
+  key         String   @unique
+  module      String
+  action      String
+  description String?
+  /// Exercising a sensitive permission is always written to the audit log.
+  isSensitive Boolean  @default(false)
+
+  roles       RolePermission[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid()) @db.Uuid
+  roleId       String @db.Uuid
+  role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  grantedAt    DateTime @default(now())
+  grantedById  String?  @db.Uuid
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id           String @id @default(uuid()) @db.Uuid
+  userId       String @db.Uuid
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId       String @db.Uuid
+  role         Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  assignedAt   DateTime @default(now())
+  assignedById String?  @db.Uuid
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  revokedById  String?  @db.Uuid
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+/// Limits a user to specific branches. A user with no scope rows sees every
+/// branch - that is how Super Admin and HR Admin are configured.
+model UserScope {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @db.Uuid
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branchId  String @db.Uuid
+  branch    Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, branchId])
+  @@map("user_scopes")
+}
+
+model RefreshToken {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 of the token. The raw token is never stored.
+  tokenHash      String   @unique
+  /// Rotation family. Re-use of a rotated token revokes the whole family.
+  familyId       String   @db.Uuid
+  userAgent      String?
+  ipAddress      String?
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedReason  String?
+  replacedByHash String?
+
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model LoginHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Recorded even when no such user exists, so credential probing is visible.
+  emailTried    String
+  success       Boolean
+  failureReason String?
+  mfaUsed       Boolean  @default(false)
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([emailTried, createdAt])
+  @@map("login_history")
+}
+
+// ---------------------------------------------------------------------------
+//  ASSET CATALOGUE
+//  Headphones, lockers, CUG SIMs and workstations are all assets. Each gets a
+//  category plus an optional typed detail table for its own attributes, so
+//  reporting stays uniform while the specifics stay strongly typed.
+// ---------------------------------------------------------------------------
+
+model AssetCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  parentId    String?  @db.Uuid
+  parent      AssetCategory?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    AssetCategory[] @relation("CategoryTree")
+
+  /// Prefix used when auto-generating asset tags, e.g. "LPT" -> LPT-1001.
+  tagPrefix          String?
+  requiresSerial     Boolean @default(true)
+  /// Consumables are tracked by quantity in StockItem, not one row per unit.
+  isConsumable       Boolean @default(false)
+  defaultLifespanMonths Int?
+  depreciationRatePct   Decimal? @db.Decimal(5, 2)
+  /// JSON-schema describing the extra spec fields shown in the UI for this
+  /// category. Lets new asset types be added with no code change.
+  specSchema         Json    @default("{}")
+
+  assets      Asset[]
+  stockItems  StockItem[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@index([deletedAt])
+  @@map("asset_categories")
+}
+
+model Vendor {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  gstin          String?
+  address        String?
+  /// SUPPLIER | SERVICE | BOTH
+  vendorType     String   @default("BOTH")
+  rating         Int?
+  notes          String?
+
+  assets         Asset[]
+  repairTickets  RepairTicket[]
+  purchaseOrders PurchaseOrder[]
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@map("vendors")
+}
+
+model PurchaseOrder {
+  id           String   @id @default(uuid()) @db.Uuid
+  poNumber     String   @unique
+  vendorId     String?  @db.Uuid
+  vendor       Vendor?  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  poDate       DateTime? @db.Date
+  invoiceNo    String?
+  invoiceDate  DateTime? @db.Date
+  totalAmount  Decimal? @db.Decimal(14, 2)
+  currency     String   @default("INR")
+  attachmentId String?  @db.Uuid
+  notes        String?
+
+  assets       Asset[]
+
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  createdById  String?  @db.Uuid
+  updatedById  String?  @db.Uuid
+  deletedById  String?  @db.Uuid
+
+  @@map("purchase_orders")
+}
+
+model Asset {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// Human-readable tag printed on the sticker, e.g. LPT-1001. Never reused.
+  assetTag       String   @unique
+  serialNumber   String?
+  /// Stable payload encoded in the printed QR sticker.
+  qrCode         String?  @unique
+
+  categoryId     String   @db.Uuid
+  category       AssetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  make           String?
+  model          String?
+  /// Category-specific attributes validated against AssetCategory.specSchema.
+  specs          Json     @default("{}")
+
+  status         AssetStatus    @default(IN_STOCK)
+  condition      AssetCondition @default(UNKNOWN)
+  ownership      OwnershipType  @default(OWNED)
+
+  branchId       String?  @db.Uuid
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  locationId     String?  @db.Uuid
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  /// Denormalised cache of the ACTIVE allocation's holder, maintained by
+  /// AllocationService inside the same transaction. Always derivable from
+  /// asset_allocations - kept only so list screens avoid a join.
+  currentHolderEmployeeId String? @db.Uuid
+  currentAllocationId     String? @db.Uuid
+
+  vendorId       String?  @db.Uuid
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  purchaseOrderId String? @db.Uuid
+  purchaseOrder  PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  purchaseDate   DateTime? @db.Date
+  purchaseCost   Decimal?  @db.Decimal(14, 2)
+  currency       String    @default("INR")
+  warrantyEndsAt DateTime? @db.Date
+  amcVendorId    String?   @db.Uuid
+  amcEndsAt      DateTime? @db.Date
+  expectedLifeMonths Int?
+
+  /// Accessories/components: a docking station belongs to a laptop.
+  parentAssetId  String?  @db.Uuid
+  parentAsset    Asset?   @relation("AssetComponents", fields: [parentAssetId], references: [id], onDelete: Restrict)
+  components     Asset[]  @relation("AssetComponents")
+
+  notes          String?
+
+  allocations      AssetAllocation[]
+  events           AssetEvent[]
+  repairTickets    RepairTicket[]
+  damageReports    DamageReport[]
+  attachments      Attachment[]
+  auditFindings    PhysicalAuditLine[]
+  headphoneDetail  HeadphoneDetail?
+  lockerDetail     Locker?
+  cugDetail        CugConnection?
+  workstationDetail Workstation?
+
+  sourceType     SourceType @default(MANUAL)
+  sourceRef      String?
+  externalRefs   Json     @default("{}")
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+  /// Only a Super Admin may set this, and only through an approved request.
+  archivedAt     DateTime?
+  archiveReason  String?
+
+  @@index([categoryId, status])
+  @@index([branchId, locationId])
+  @@index([serialNumber])
+  @@index([currentHolderEmployeeId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([warrantyEndsAt])
+  @@map("assets")
+}
+
+// ---------------------------------------------------------------------------
+//  ALLOCATION & LIFETIME HISTORY
+//  Allocation rows are never deleted. Returning an asset closes the row and
+//  opens nothing; the full chain of custody stays queryable forever.
+// ---------------------------------------------------------------------------
+
+model AssetAllocation {
+  id            String   @id @default(uuid()) @db.Uuid
+  assetId       String   @db.Uuid
+  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  holderType    AllocationHolderType @default(EMPLOYEE)
+  employeeId    String?  @db.Uuid
+  employee      Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  /// Set when holderType is DEPARTMENT / WORKSTATION / LOCATION / VENDOR.
+  holderRefId   String?  @db.Uuid
+  holderLabel   String?
+
+  status        AllocationStatus @default(ACTIVE)
+  allocatedAt   DateTime
+  allocatedById String?  @db.Uuid
+  /// Condition recorded at hand-over and at return - the basis for damage
+  /// recovery conversations.
+  conditionOut  AssetCondition @default(GOOD)
+  expectedReturnAt DateTime?
+
+  returnedAt    DateTime?
+  returnedToById String? @db.Uuid
+  conditionIn   AssetCondition?
+  returnRemarks String?
+
+  /// Signed hand-over acknowledgement (scan or e-sign payload).
+  acknowledgedAt DateTime?
+  acknowledgementRef String?
+
+  remarks       String?
+  attachments   Attachment[]
+
+  sourceType    SourceType @default(MANUAL)
+  sourceRef     String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String?  @db.Uuid
+  updatedById   String?  @db.Uuid
+  /// Allocations are historical record - soft delete exists only so a
+  /// mis-keyed row can be voided, and it still stays visible in history.
+  deletedAt     DateTime?
+  deletedById   String?  @db.Uuid
+  voidReason    String?
+
+  @@index([assetId, status])
+  @@index([employeeId, status])
+  @@index([allocatedAt])
+  @@map("asset_allocations")
+}
+
+/// Append-only. Nothing in the application is permitted to UPDATE or DELETE a
+/// row here - enforced by a database trigger (see migrations/manual).
+model AssetEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  assetId     String   @db.Uuid
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  eventType   AssetEventType
+  occurredAt  DateTime @default(now())
+  /// Free-text line rendered on the asset timeline in the UI.
+  summary     String
+  fromValue   Json?
+  toValue     Json?
+  /// Whatever caused it: allocation id, repair ticket id, sync run id...
+  refType     String?
+  refId       String?  @db.Uuid
+
+  actorUserId String?  @db.Uuid
+  actorName   String?
+  ipAddress   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([assetId, occurredAt])
+  @@index([eventType])
+  @@map("asset_events")
+}
+
+// ---------------------------------------------------------------------------
+//  REPAIRS & DAMAGE
+// ---------------------------------------------------------------------------
+
+model RepairTicket {
+  id             String   @id @default(uuid()) @db.Uuid
+  ticketNo       String   @unique
+  assetId        String   @db.Uuid
+  asset          Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  reportedById   String?  @db.Uuid
+  reportedBy     Employee? @relation("RepairReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  reportedAt     DateTime @default(now())
+  faultCategory  String?
+  faultDescription String
+
+  status         RepairStatus @default(REPORTED)
+  priority       String   @default("NORMAL")
+
+  vendorId       String?  @db.Uuid
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  sentToVendorAt DateTime?
+  expectedBackAt DateTime?
+  receivedBackAt DateTime?
+
+  estimatedCost  Decimal? @db.Decimal(14, 2)
+  actualCost     Decimal? @db.Decimal(14, 2)
+  underWarranty  Boolean  @default(false)
+  /// Set when the fault is attributed to the holder rather than wear and tear.
+  chargedToEmployee Boolean @default(false)
+  recoveryAmount Decimal? @db.Decimal(14, 2)
+
+  resolution     String?
+  closedAt       DateTime?
+  closedById     String?  @db.Uuid
+
+  logs           RepairLog[]
+  attachments    Attachment[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@index([assetId, status])
+  @@index([status, reportedAt])
+  @@index([deletedAt])
+  @@map("repair_tickets")
+}
+
+/// Append-only progress trail for a repair.
+model RepairLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @db.Uuid
+  ticket     RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus RepairStatus?
+  toStatus   RepairStatus
+  note       String?
+  actorUserId String? @db.Uuid
+  actorName  String?
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@map("repair_logs")
+}
+
+model DamageReport {
+  id           String   @id @default(uuid()) @db.Uuid
+  reportNo     String   @unique
+  assetId      String   @db.Uuid
+  asset        Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  reportedById String?  @db.Uuid
+  reportedBy   Employee? @relation(fields: [reportedById], references: [id], onDelete: Restrict)
+
+  occurredAt   DateTime?
+  description  String
+  severity     String   @default("MINOR")
+  /// Links to the repair raised off the back of this report, if any.
+  repairTicketId String? @db.Uuid
+  reviewedById String?  @db.Uuid
+  reviewedAt   DateTime?
+  reviewOutcome String?
+
+  attachments  Attachment[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  createdById  String?  @db.Uuid
+  updatedById  String?  @db.Uuid
+  deletedById  String?  @db.Uuid
+
+  @@index([assetId])
+  @@map("damage_reports")
+}
+
+// ---------------------------------------------------------------------------
+//  TYPED ASSET EXTENSIONS
+//  Each is a 1:1 extension of an Asset row, so every headphone / locker / SIM
+//  / seat still appears in global inventory reports and asset history.
+// ---------------------------------------------------------------------------
+
+model HeadphoneDetail {
+  id           String  @id @default(uuid()) @db.Uuid
+  assetId      String  @unique @db.Uuid
+  asset        Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  /// WIRED | WIRELESS | BLUETOOTH | USB
+  connectivity String  @default("WIRED")
+  /// MONO | STEREO | BINAURAL
+  earStyle     String?
+  hasMic       Boolean @default(true)
+  hasNoiseCancellation Boolean @default(false)
+  cushionReplacedAt DateTime? @db.Date
+  /// Contact-centre hygiene rule: headsets are personal issue once assigned.
+  isPersonalIssue Boolean @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("headphone_details")
+}
+
+model Workstation {
+  id          String  @id @default(uuid()) @db.Uuid
+  /// Optional: a seat can exist as pure space with no asset row behind it.
+  assetId     String? @unique @db.Uuid
+  asset       Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  branchId    String  @db.Uuid
+  branch      Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  locationId  String? @db.Uuid
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  seatCode    String
+  row         String?
+  column      String?
+  status      WorkstationStatus @default(AVAILABLE)
+  /// Seats shared across shifts hold more than one active allocation.
+  isHotDesk   Boolean @default(false)
+  hasDesktop  Boolean @default(false)
+  hasPhone    Boolean @default(false)
+  notes       String?
+
+  allocations WorkstationAllocation[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@unique([branchId, seatCode])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("workstations")
+}
+
+model WorkstationAllocation {
+  id            String   @id @default(uuid()) @db.Uuid
+  workstationId String   @db.Uuid
+  workstation   Workstation @relation(fields: [workstationId], references: [id], onDelete: Restrict)
+  employeeId    String   @db.Uuid
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  shift         String?
+  status        AllocationStatus @default(ACTIVE)
+  allocatedAt   DateTime
+  releasedAt    DateTime?
+  remarks       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String?  @db.Uuid
+  updatedById   String?  @db.Uuid
+
+  @@index([workstationId, status])
+  @@index([employeeId, status])
+  @@map("workstation_allocations")
+}
+
+model Locker {
+  id          String  @id @default(uuid()) @db.Uuid
+  assetId     String? @unique @db.Uuid
+  asset       Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  branchId    String  @db.Uuid
+  branch      Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  locationId  String? @db.Uuid
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  lockerNo    String
+  bankOrRow   String?
+  size        String?
+  /// KEY | PADLOCK | DIGITAL | BIOMETRIC
+  lockType    String  @default("KEY")
+  keyNumber   String?
+  spareKeyWith String?
+  status      LockerStatus @default(AVAILABLE)
+  notes       String?
+
+  allocations LockerAllocation[]
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@unique([branchId, lockerNo])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("lockers")
+}
+
+model LockerAllocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  lockerId    String   @db.Uuid
+  locker      Locker   @relation(fields: [lockerId], references: [id], onDelete: Restrict)
+  employeeId  String   @db.Uuid
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  status      AllocationStatus @default(ACTIVE)
+  allocatedAt DateTime
+  releasedAt  DateTime?
+  keyIssued   Boolean  @default(true)
+  keyReturned Boolean  @default(false)
+  remarks     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+
+  @@index([lockerId, status])
+  @@index([employeeId, status])
+  @@map("locker_allocations")
+}
+
+/// CUG = Closed User Group mobile connection (SIM + number + handset link).
+model CugConnection {
+  id           String  @id @default(uuid()) @db.Uuid
+  assetId      String? @unique @db.Uuid
+  asset        Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  branchId     String  @db.Uuid
+  branch       Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  mobileNumber String  @unique
+  simNumber    String?
+  operator     String?
+  planName     String?
+  planRentAmount Decimal? @db.Decimal(10, 2)
+  /// Monthly cap after which usage is recovered from the employee.
+  creditLimit  Decimal? @db.Decimal(10, 2)
+  activatedOn  DateTime? @db.Date
+  status       CugStatus @default(AVAILABLE)
+  isDataEnabled Boolean @default(true)
+  isIsdEnabled  Boolean @default(false)
+  notes        String?
+
+  allocations  CugAllocation[]
+
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  createdById  String?  @db.Uuid
+  updatedById  String?  @db.Uuid
+  deletedById  String?  @db.Uuid
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("cug_connections")
+}
+
+model CugAllocation {
+  id           String   @id @default(uuid()) @db.Uuid
+  connectionId String   @db.Uuid
+  connection   CugConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  employeeId   String   @db.Uuid
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  status       AllocationStatus @default(ACTIVE)
+  allocatedAt  DateTime
+  releasedAt   DateTime?
+  handsetAssetId String? @db.Uuid
+  remarks      String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdById  String?  @db.Uuid
+  updatedById  String?  @db.Uuid
+
+  @@index([connectionId, status])
+  @@index([employeeId, status])
+  @@map("cug_allocations")
+}
+
+// ---------------------------------------------------------------------------
+//  CONSUMABLE STOCK
+//  Quantity-tracked items (cables, mouse pads, ear cushions). Balance is
+//  derived from an append-only ledger, never edited in place.
+// ---------------------------------------------------------------------------
+
+model StockItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  sku          String  @unique
+  name         String
+  categoryId   String? @db.Uuid
+  category     AssetCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  branchId     String  @db.Uuid
+  branch       Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  locationId   String? @db.Uuid
+  location     Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  unit         String  @default("NOS")
+  /// Running balance, recomputed from the ledger inside every transaction.
+  quantityOnHand Decimal @default(0) @db.Decimal(14, 3)
+  reorderLevel   Decimal @default(0) @db.Decimal(14, 3)
+  unitCost       Decimal? @db.Decimal(14, 2)
+
+  transactions StockTransaction[]
+
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  createdById  String?  @db.Uuid
+  updatedById  String?  @db.Uuid
+  deletedById  String?  @db.Uuid
+
+  @@index([branchId])
+  @@index([deletedAt])
+  @@map("stock_items")
+}
+
+/// Append-only ledger.
+model StockTransaction {
+  id           String   @id @default(uuid()) @db.Uuid
+  stockItemId  String   @db.Uuid
+  stockItem    StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  txnType      StockTxnType
+  quantity     Decimal  @db.Decimal(14, 3)
+  balanceAfter Decimal  @db.Decimal(14, 3)
+  unitCost     Decimal? @db.Decimal(14, 2)
+
+  employeeId   String?  @db.Uuid
+  refType      String?
+  refId        String?  @db.Uuid
+  remarks      String?
+
+  actorUserId  String?  @db.Uuid
+  actorName    String?
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([stockItemId, occurredAt])
+  @@map("stock_transactions")
+}
+
+// ---------------------------------------------------------------------------
+//  REQUESTS & APPROVAL WORKFLOW
+//  Request -> Manager -> Admin -> commit. Nothing sensitive is written to the
+//  master tables until every required step is APPROVED.
+// ---------------------------------------------------------------------------
+
+model AssetRequest {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestNo     String   @unique
+  requestType   RequestType
+  status        RequestStatus @default(DRAFT)
+
+  requestedById String   @db.Uuid
+  requestedBy   Employee @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  departmentId  String?  @db.Uuid
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  categoryId    String?  @db.Uuid
+  quantity      Int      @default(1)
+  justification String?
+  neededBy      DateTime? @db.Date
+  priority      String   @default("NORMAL")
+
+  /// Set once fulfilled, so the request links to what was actually handed over.
+  fulfilledAssetIds Json  @default("[]")
+  fulfilledAt   DateTime?
+  fulfilledById String?  @db.Uuid
+
+  approvalRequestId String? @unique @db.Uuid
+  approvalRequest   ApprovalRequest? @relation(fields: [approvalRequestId], references: [id], onDelete: SetNull)
+
+  attachments   Attachment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  createdById   String?  @db.Uuid
+  updatedById   String?  @db.Uuid
+  deletedById   String?  @db.Uuid
+
+  @@index([status, requestType])
+  @@index([requestedById])
+  @@map("asset_requests")
+}
+
+/// A pending mutation held in escrow. `payload` is the exact change that will
+/// be applied once every step approves - it is applied by the server, never
+/// re-submitted by the client, so an approved change cannot be tampered with.
+model ApprovalRequest {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestNo     String   @unique
+  changeType    ChangeRequestType
+  status        ApprovalStatus @default(PENDING)
+
+  /// Table + row this affects. Null for bulk operations.
+  targetTable   String?
+  targetId      String?  @db.Uuid
+  targetLabel   String?
+
+  /// Machine-applicable diff: { before: {...}, after: {...}, op: "..." }
+  payload       Json
+  reason        String
+  riskNote      String?
+  affectedCount Int      @default(1)
+
+  raisedById    String   @db.Uuid
+  raisedByName  String
+  raisedAt      DateTime @default(now())
+
+  steps         ApprovalStep[]
+  assetRequest  AssetRequest?
+
+  decidedAt     DateTime?
+  appliedAt     DateTime?
+  applyError    String?
+  expiresAt     DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, changeType])
+  @@index([targetTable, targetId])
+  @@map("approval_requests")
+}
+
+model ApprovalStep {
+  id          String   @id @default(uuid()) @db.Uuid
+  requestId   String   @db.Uuid
+  request     ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  stage       ApprovalStage
+  sequence    Int
+  status      ApprovalStatus @default(PENDING)
+
+  /// Either a specific approver or "anyone holding this role".
+  assignedUserId String? @db.Uuid
+  assignedRoleKey String?
+
+  decidedById String?  @db.Uuid
+  decidedBy   User?    @relation("ApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+  comment     String?
+  ipAddress   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([requestId, sequence])
+  @@index([status, assignedRoleKey])
+  @@map("approval_steps")
+}
+
+// ---------------------------------------------------------------------------
+//  PHYSICAL AUDIT (stock-take)
+// ---------------------------------------------------------------------------
+
+model PhysicalAudit {
+  id          String   @id @default(uuid()) @db.Uuid
+  auditNo     String   @unique
+  title       String
+  branchId    String?  @db.Uuid
+  locationId  String?  @db.Uuid
+  scheduledFor DateTime? @db.Date
+  startedAt   DateTime?
+  completedAt DateTime?
+  /// PLANNED | IN_PROGRESS | COMPLETED | ABANDONED
+  status      String   @default("PLANNED")
+  conductedById String? @db.Uuid
+  summary     Json     @default("{}")
+
+  lines       PhysicalAuditLine[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  deletedById String?  @db.Uuid
+
+  @@map("physical_audits")
+}
+
+model PhysicalAuditLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  auditId     String   @db.Uuid
+  audit       PhysicalAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  assetId     String   @db.Uuid
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  expectedLocationId String? @db.Uuid
+  foundLocationId    String? @db.Uuid
+  /// PENDING | VERIFIED | MISPLACED | MISSING | EXTRA | DAMAGED
+  finding     String   @default("PENDING")
+  scannedAt   DateTime?
+  scannedById String?  @db.Uuid
+  conditionFound AssetCondition?
+  remarks     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([auditId, assetId])
+  @@index([finding])
+  @@map("physical_audit_lines")
+}
+
+// ---------------------------------------------------------------------------
+//  AUDIT TRAIL  (mandatory - every change is captured here)
+//  Append-only. A database trigger rejects UPDATE and DELETE on this table so
+//  that not even a compromised application account can rewrite history.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+
+  action      AuditAction
+  entityType  String
+  entityId    String?  @db.Uuid
+  /// Human label captured at the time, e.g. "Laptop LPT-1001" - stays readable
+  /// even if the row is later renamed.
+  entityLabel String?
+
+  /// Who
+  userId      String?  @db.Uuid
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String
+  userEmail   String?
+  roleKeys    String[] @default([])
+
+  /// Where from
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+  sessionId   String?
+
+  /// What changed - only the fields that actually differ.
+  oldValue    Json?
+  newValue    Json?
+  changedFields String[] @default([])
+  summary     String?
+
+  /// Correlation: sync run, approval request, import batch...
+  refType     String?
+  refId       String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Attachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  /// local path or S3 object key, depending on STORAGE_DRIVER
+  storageKey  String
+  checksum    String?
+
+  assetId        String? @db.Uuid
+  asset          Asset?  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  allocationId   String? @db.Uuid
+  allocation     AssetAllocation? @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  repairTicketId String? @db.Uuid
+  repairTicket   RepairTicket? @relation(fields: [repairTicketId], references: [id], onDelete: Cascade)
+  damageReportId String? @db.Uuid
+  damageReport   DamageReport? @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+  assetRequestId String? @db.Uuid
+  assetRequest   AssetRequest? @relation(fields: [assetRequestId], references: [id], onDelete: Cascade)
+
+  uploadedById String? @db.Uuid
+  createdAt    DateTime @default(now())
+  deletedAt    DateTime?
+  deletedById  String?  @db.Uuid
+
+  @@index([assetId])
+  @@map("attachments")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      NotificationType
+  title     String
+  body      String?
+  linkUrl   String?
+  data      Json     @default("{}")
+
+  readAt    DateTime?
+  emailedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model SystemSetting {
+  key         String   @id
+  value       Json
+  description String?
+  /// Settings flagged sensitive are redacted in API responses and audit logs.
+  isSensitive Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  updatedById String?  @db.Uuid
+
+  @@map("system_settings")
+}
+
+// ---------------------------------------------------------------------------
+//  GOOGLE SHEET SYNC
+//
+//  Read-only, additive, and entirely optional. Three modes are supported:
+//    MANUAL              - admin presses "Sync Google Sheet"
+//    SCHEDULED           - hourly / 6-hourly / daily
+//    ONE_TIME_MIGRATION  - import once, then disconnect for good
+//
+//  The engine NEVER deletes or deactivates a database row because a sheet row
+//  vanished. A sheet going missing is a source outage, not a business event.
+//  Every raw row ever read is archived in `sync_rows`, so the original sheet
+//  content survives even if the spreadsheet itself is destroyed.
+// ---------------------------------------------------------------------------
+
+model SyncSource {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  sourceType     SourceType @default(GOOGLE_SHEET)
+
+  /// Google workbook id + tab. Null for uploaded Excel/CSV sources.
+  spreadsheetId  String?
+  sheetGid       String?
+  sheetName      String?
+  workbookLabel  String?
+
+  /// Which master table rows from this tab become.
+  targetEntity   String
+  /// 1-based row holding the column headers; data starts on the next row.
+  headerRow      Int      @default(1)
+  /// Field names (post-mapping) that together identify a row uniquely.
+  /// e.g. ["serialNumber"] or ["employeeCode"] or ["mobileNumber"].
+  dedupeKeys     String[] @default([])
+
+  mode           SyncMode     @default(MANUAL)
+  schedule       SyncSchedule @default(OFF)
+  /// Set true by a ONE_TIME_MIGRATION, or manually via "Disconnect".
+  /// A disconnected source can never run again without an explicit reconnect.
+  isDisconnected Boolean  @default(false)
+  disconnectedAt DateTime?
+  disconnectedById String? @db.Uuid
+
+  /// When true a run only reports what it *would* do and writes nothing.
+  dryRunDefault  Boolean  @default(false)
+  /// Update rows that already exist, or only insert brand-new ones.
+  allowUpdates   Boolean  @default(true)
+
+  lastRunAt      DateTime?
+  lastSuccessAt  DateTime?
+  lastRowCount   Int?
+  lastError      String?
+
+  mappings       SyncColumnMapping[]
+  runs           SyncRun[]
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@unique([spreadsheetId, sheetGid])
+  @@index([targetEntity])
+  @@map("sync_sources")
+}
+
+/// Maps a spreadsheet column header onto a field of the target entity.
+/// Editable from the admin UI, so a renamed column is a 10-second fix rather
+/// than a code change.
+model SyncColumnMapping {
+  id           String  @id @default(uuid()) @db.Uuid
+  sourceId     String  @db.Uuid
+  source       SyncSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  /// Header exactly as it appears in the sheet.
+  sourceHeader String
+  /// Dotted path on the target entity, e.g. "employee.employeeCode".
+  targetField  String
+  /// none | trim | upper | lower | title | date | number | boolean | phone |
+  /// enum | lookup - applied by the transform pipeline.
+  transform    String  @default("trim")
+  transformArg Json    @default("{}")
+  isRequired   Boolean @default(false)
+  defaultValue String?
+  /// Ignore this column entirely (kept for documentation).
+  isIgnored    Boolean @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([sourceId, sourceHeader])
+  @@map("sync_column_mappings")
+}
+
+model SyncRun {
+  id            String   @id @default(uuid()) @db.Uuid
+  sourceId      String   @db.Uuid
+  source        SyncSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  mode          SyncMode
+  status        SyncStatus @default(PENDING)
+  dryRun        Boolean  @default(false)
+
+  triggeredById String?  @db.Uuid
+  triggeredByName String?
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  durationMs    Int?
+
+  rowsRead      Int @default(0)
+  rowsNew       Int @default(0)
+  rowsUpdated   Int @default(0)
+  rowsUnchanged Int @default(0)
+  rowsDuplicate Int @default(0)
+  rowsInvalid   Int @default(0)
+  rowsConflict  Int @default(0)
+  rowsSkipped   Int @default(0)
+
+  /// Populated when a run exceeds SYNC_MAX_ROWS_PER_RUN and pauses for an
+  /// admin to confirm rather than applying a huge change blindly.
+  confirmationToken String?
+  confirmedById String?  @db.Uuid
+  confirmedAt   DateTime?
+
+  errorMessage  String?
+  errorDetail   Json?
+  /// Backup taken immediately before a ONE_TIME_MIGRATION or a large run.
+  preRunBackupId String? @db.Uuid
+
+  rows          SyncRow[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([sourceId, startedAt])
+  @@index([status])
+  @@map("sync_runs")
+}
+
+/// Permanent archive of every row ever read from a sheet, exactly as it was
+/// read. This is what guarantees that deleting the Google Sheet costs nothing:
+/// the raw source data is already inside the master database.
+model SyncRow {
+  id          BigInt   @id @default(autoincrement())
+  runId       String   @db.Uuid
+  run         SyncRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  rowNumber   Int
+  /// Verbatim cell values keyed by sheet header.
+  rawData     Json
+  /// Values after mapping, transformation and validation.
+  normalized  Json?
+  /// Hash of rawData - lets an unchanged row be detected without comparison.
+  rowHash     String
+  dedupeKey   String?
+
+  status      SyncRowStatus
+  entityType  String?
+  entityId    String?  @db.Uuid
+  /// Validation errors / conflict explanations shown in the sync report.
+  messages    Json     @default("[]")
+
+  createdAt   DateTime @default(now())
+
+  @@index([runId, status])
+  @@index([dedupeKey])
+  @@index([rowHash])
+  @@map("sync_rows")
+}
+
+// ---------------------------------------------------------------------------
+//  BACKUPS
+// ---------------------------------------------------------------------------
+
+model BackupRun {
+  id           String   @id @default(uuid()) @db.Uuid
+  type         BackupType
+  format       BackupFormat @default(PG_DUMP)
+  status       BackupStatus @default(RUNNING)
+
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+
+  filePath     String?
+  fileName     String?
+  sizeBytes    BigInt?
+  checksumSha256 String?
+
+  /// Rows per table at the moment of the dump - a cheap integrity signal and
+  /// proof that nothing silently disappeared between backups.
+  tableCounts  Json     @default("{}")
+
+  /// Daily backups keep the newest 90; weekly archives keep 52.
+  retainUntil  DateTime?
+  prunedAt     DateTime?
+
+  triggeredById String? @db.Uuid
+  triggeredByName String?
+  errorMessage String?
+
+  createdAt    DateTime @default(now())
+
+  @@index([type, startedAt])
+  @@index([status])
+  @@map("backup_runs")
+}
