@@ -41,6 +41,17 @@ export class AssetsController {
     });
   }
 
+  /**
+   * Declared before :id on purpose - Nest matches routes in order, so a
+   * ':id' above this would capture the literal string "categories".
+   */
+  @RequirePermissions('asset.read', 'asset.read_team', 'asset.read_own')
+  @RequireAny()
+  @Get('categories')
+  listCategories() {
+    return this.assets.listCategories();
+  }
+
   @RequirePermissions('asset.read', 'asset.read_team', 'asset.read_own')
   @RequireAny()
   @Get(':id')

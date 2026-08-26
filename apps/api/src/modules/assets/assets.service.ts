@@ -113,6 +113,14 @@ export class AssetsService {
     return { id: '00000000-0000-0000-0000-000000000000' };
   }
 
+  /** Categories for the asset form's dropdown. */
+  async listCategories() {
+    return this.prisma.assetCategory.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, tagPrefix: true },
+    });
+  }
+
   async findOne(id: string) {
     const asset = await this.prisma.asset.findFirst({
       where: { id, deletedAt: undefined },
@@ -245,6 +253,22 @@ export class AssetsService {
       );
     }
 
+    // A Super Admin holds the final approval stage, so routing their own
+    // request through a queue only they can clear is ceremony with no control
+    // value. Apply it directly and record who did it. Everyone else raises a
+    // request, and the asset stays fully active until it is approved.
+    if (principal.permissions.includes('approval.decide_super')) {
+      const archived = await this.applyArchive(id, reason, principal.userId);
+      return {
+        request: null,
+        applied: true,
+        asset: archived,
+        message:
+          `${asset.assetTag} archived. It is retained in full, with its ` +
+          'allocation history and timeline, and can be restored at any time.',
+      };
+    }
+
     const request = await this.prisma.approvalRequest.create({
       data: {
         requestNo: `AR-${Date.now().toString(36).toUpperCase()}`,
@@ -278,6 +302,8 @@ export class AssetsService {
 
     return {
       request,
+      applied: false,
+      asset: null,
       message:
         'Archiving needs approval. The asset remains active and fully visible ' +
         'until every approval step is complete.',

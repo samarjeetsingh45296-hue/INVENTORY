@@ -2,55 +2,194 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Monochrome palette. One neutral ramp carries the whole interface and a
+   single accent is reserved for the primary action on a screen, so the eye
+   goes to the thing that matters rather than to decoration.
+--------------------------------------------------------------------------- */
+
 :root {
-  --bg: 250 250 251;
-  --surface: 255 255 255;
-  --border: 226 232 240;
-  --text: 15 23 42;
-  --muted: 100 116 139;
+  --bg:          255 255 255;
+  --surface:     255 255 255;
+  --surface-2:   249 250 251;
+  --surface-3:   243 244 246;
+  --border:      229 231 235;
+  --border-hard: 209 213 219;
+  --text:         17  24  39;
+  --text-2:       75  85  99;
+  --muted:       107 114 128;
+  --accent:       17  24  39;
+  --accent-fg:   255 255 255;
+  --ring:         17  24  39;
+
+  --ok:      21 128  61;
+  --ok-bg:  240 253 244;
+  --warn:   161  98   7;
+  --warn-bg:254 252 232;
+  --bad:    185  28  28;
+  --bad-bg: 254 242 242;
+  --info:    29  78 216;
+  --info-bg:239 246 255;
 }
 
 .dark {
-  --bg: 12 15 22;
-  --surface: 21 25 35;
-  --border: 42 48 62;
-  --text: 226 232 240;
-  --muted: 148 163 184;
+  --bg:            9  9  11;
+  --surface:      24  24  27;
+  --surface-2:    32  32  36;
+  --surface-3:    39  39  44;
+  --border:       39  39  44;
+  --border-hard:  63  63  70;
+  --text:        250 250 250;
+  --text-2:      212 212 216;
+  --muted:       161 161 170;
+  --accent:      250 250 250;
+  --accent-fg:    17  17  20;
+  --ring:        250 250 250;
+
+  --ok:     134 239 172;
+  --ok-bg:   20  45  32;
+  --warn:   253 224  71;
+  --warn-bg: 51  40   8;
+  --bad:    252 165 165;
+  --bad-bg:  60  22  22;
+  --info:   147 197 253;
+  --info-bg: 23  37  64;
 }
+
+* { border-color: rgb(var(--border)); }
 
 body {
   background: rgb(var(--bg));
   color: rgb(var(--text));
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
 }
 
+::selection { background: rgb(var(--text) / 0.15); }
+
+/* Slim scrollbars, so dense tables do not lose width to chrome. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-hard));
+  border-radius: 6px;
+  border: 3px solid rgb(var(--bg));
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+
 @layer components {
+  /* ------------------------------------------------------------- surfaces */
   .card {
     @apply rounded-lg border bg-[rgb(var(--surface))] border-[rgb(var(--border))];
   }
+  .card-2 {
+    @apply rounded-lg border bg-[rgb(var(--surface-2))] border-[rgb(var(--border))];
+  }
+
+  /* -------------------------------------------------------------- buttons */
+  /* Compact by default: 28px tall, which keeps toolbars tight and stops a
+     row of actions from dominating the content it acts on. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2
-           text-sm font-medium transition disabled:opacity-50
-           disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap
+           rounded-md px-2.5 h-7 text-[13px] font-medium leading-none
+           transition-colors duration-100
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-1
+           focus-visible:ring-offset-[rgb(var(--bg))]
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-[rgb(var(--accent))] text-[rgb(var(--accent-fg))]
+           hover:opacity-85;
   }
   .btn-ghost {
-    @apply btn border border-[rgb(var(--border))] hover:bg-black/5 dark:hover:bg-white/5;
+    @apply btn border border-[rgb(var(--border-hard))] bg-transparent
+           text-[rgb(var(--text))] hover:bg-[rgb(var(--surface-3))];
   }
+  .btn-quiet {
+    @apply btn bg-transparent text-[rgb(var(--text-2))]
+           hover:bg-[rgb(var(--surface-3))] hover:text-[rgb(var(--text))];
+  }
+  .btn-danger {
+    @apply btn border border-[rgb(var(--bad))] bg-transparent
+           text-[rgb(var(--bad))] hover:bg-[rgb(var(--bad-bg))];
+  }
+  /* Icon-only, square. */
+  .btn-icon { @apply btn w-7 px-0; }
+  /* Occasional larger call to action. */
+  .btn-lg   { @apply h-9 px-4 text-sm; }
+
+  /* --------------------------------------------------------------- inputs */
   .input {
-    @apply w-full rounded-md border border-[rgb(var(--border))]
-           bg-[rgb(var(--surface))] px-3 py-2 text-sm
-           outline-none focus:ring-2 focus:ring-brand-500;
+    @apply w-full rounded-md border border-[rgb(var(--border-hard))]
+           bg-[rgb(var(--surface))] px-2.5 h-8 text-[13px]
+           text-[rgb(var(--text))] placeholder:text-[rgb(var(--muted))]
+           outline-none transition-shadow
+           focus:border-[rgb(var(--ring))] focus:ring-1 focus:ring-[rgb(var(--ring))]
+           disabled:opacity-50;
   }
+  textarea.input { @apply h-auto py-2 leading-relaxed; }
+  select.input   { @apply pr-8; }
   .label {
-    @apply mb-1 block text-sm font-medium text-[rgb(var(--muted))];
-  }
-  .th {
-    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide
+    @apply mb-1 block text-[11px] font-medium uppercase tracking-wide
            text-[rgb(var(--muted))];
   }
+  .hint { @apply mt-1 text-[11px] text-[rgb(var(--muted))]; }
+
+  /* --------------------------------------------------------------- tables */
+  .table { @apply w-full border-collapse text-[13px]; }
+  .th {
+    @apply sticky top-0 z-10 bg-[rgb(var(--surface-2))] px-3 py-2 text-left
+           text-[11px] font-semibold uppercase tracking-wide
+           text-[rgb(var(--muted))] border-b border-[rgb(var(--border))];
+  }
   .td {
-    @apply px-3 py-2 text-sm border-t border-[rgb(var(--border))];
+    @apply px-3 py-1.5 border-b border-[rgb(var(--border))]
+           text-[rgb(var(--text-2))] align-middle;
+  }
+  .row { @apply transition-colors hover:bg-[rgb(var(--surface-2))]; }
+  .num { @apply tabular-nums text-right; }
+
+  /* --------------------------------------------------------------- badges */
+  .badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[11px]
+           font-medium leading-none;
+  }
+  .badge-ok   { @apply badge text-[rgb(var(--ok))]   bg-[rgb(var(--ok-bg))]; }
+  .badge-warn { @apply badge text-[rgb(var(--warn))] bg-[rgb(var(--warn-bg))]; }
+  .badge-bad  { @apply badge text-[rgb(var(--bad))]  bg-[rgb(var(--bad-bg))]; }
+  .badge-info { @apply badge text-[rgb(var(--info))] bg-[rgb(var(--info-bg))]; }
+  .badge-mute {
+    @apply badge text-[rgb(var(--muted))] bg-[rgb(var(--surface-3))];
+  }
+
+  /* ---------------------------------------------------------------- misc */
+  .kbd {
+    @apply rounded border border-[rgb(var(--border-hard))]
+           bg-[rgb(var(--surface-2))] px-1 py-0.5 font-mono text-[10px]
+           text-[rgb(var(--muted))];
+  }
+  .divider { @apply border-t border-[rgb(var(--border))]; }
+  .link {
+    @apply underline underline-offset-2 decoration-[rgb(var(--border-hard))]
+           hover:decoration-[rgb(var(--text))];
+  }
+}
+
+@layer utilities {
+  /* Skeleton shimmer for loading rows. */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--surface-2)) 25%,
+      rgb(var(--surface-3)) 37%,
+      rgb(var(--surface-2)) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
   }
 }

@@ -356,9 +356,9 @@ model Organization {
   departments Department[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -393,9 +393,9 @@ model Branch {
   userScopes     UserScope[]
 
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
@@ -432,9 +432,9 @@ model Location {
   stockItems   StockItem[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -462,9 +462,9 @@ model Department {
   assetRequests  AssetRequest[]
 
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
@@ -484,9 +484,9 @@ model Designation {
   employees   Employee[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -556,9 +556,9 @@ model Employee {
   externalRefs     Json     @default("{}")
 
   isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deletedAt        DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById      String?  @db.Uuid
   updatedById      String?  @db.Uuid
   deletedById      String?  @db.Uuid
@@ -588,7 +588,7 @@ model User {
 
   isActive           Boolean  @default(true)
   mustChangePassword Boolean  @default(true)
-  passwordChangedAt  DateTime?
+  passwordChangedAt DateTime? @db.Timestamptz(3)
 
   mfaEnabled         Boolean  @default(false)
   /// TOTP secret, AES-256-GCM encrypted at rest. Never leaves the server.
@@ -596,10 +596,10 @@ model User {
   /// Hashed single-use recovery codes.
   mfaRecoveryCodes   Json     @default("[]")
 
-  lastLoginAt        DateTime?
+  lastLoginAt DateTime? @db.Timestamptz(3)
   lastLoginIp        String?
   failedLoginCount   Int      @default(0)
-  lockedUntil        DateTime?
+  lockedUntil DateTime? @db.Timestamptz(3)
 
   roles              UserRole[]
   scopes             UserScope[]
@@ -609,9 +609,9 @@ model User {
   notifications      Notification[]
   approvalDecisions  ApprovalStep[] @relation("ApprovalDecider")
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById        String?  @db.Uuid
   updatedById        String?  @db.Uuid
   deletedById        String?  @db.Uuid
@@ -635,9 +635,9 @@ model Role {
   users       UserRole[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -657,8 +657,8 @@ model Permission {
 
   roles       RolePermission[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([module])
   @@map("permissions")
@@ -671,7 +671,7 @@ model RolePermission {
   permissionId String @db.Uuid
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  grantedAt    DateTime @default(now())
+  grantedAt DateTime @default(now()) @db.Timestamptz(3)
   grantedById  String?  @db.Uuid
 
   @@unique([roleId, permissionId])
@@ -685,10 +685,10 @@ model UserRole {
   roleId       String @db.Uuid
   role         Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
-  assignedAt   DateTime @default(now())
+  assignedAt DateTime @default(now()) @db.Timestamptz(3)
   assignedById String?  @db.Uuid
-  expiresAt    DateTime?
-  revokedAt    DateTime?
+  expiresAt DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
   revokedById  String?  @db.Uuid
 
   @@unique([userId, roleId])
@@ -705,7 +705,7 @@ model UserScope {
   branchId  String @db.Uuid
   branch    Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@unique([userId, branchId])
   @@map("user_scopes")
@@ -721,12 +721,12 @@ model RefreshToken {
   familyId       String   @db.Uuid
   userAgent      String?
   ipAddress      String?
-  expiresAt      DateTime
-  revokedAt      DateTime?
+  expiresAt DateTime @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
   revokedReason  String?
   replacedByHash String?
 
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([userId])
   @@index([familyId])
@@ -745,7 +745,7 @@ model LoginHistory {
   mfaUsed       Boolean  @default(false)
   ipAddress     String?
   userAgent     String?
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([userId, createdAt])
   @@index([emailTried, createdAt])
@@ -782,9 +782,9 @@ model AssetCategory {
   stockItems  StockItem[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -812,9 +812,9 @@ model Vendor {
   purchaseOrders PurchaseOrder[]
 
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
@@ -838,9 +838,9 @@ model PurchaseOrder {
   assets       Asset[]
 
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById  String?  @db.Uuid
   updatedById  String?  @db.Uuid
   deletedById  String?  @db.Uuid
@@ -913,14 +913,14 @@ model Asset {
   externalRefs   Json     @default("{}")
 
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
   /// Only a Super Admin may set this, and only through an approved request.
-  archivedAt     DateTime?
+  archivedAt DateTime? @db.Timestamptz(3)
   archiveReason  String?
 
   @@index([categoryId, status])
@@ -952,20 +952,20 @@ model AssetAllocation {
   holderLabel   String?
 
   status        AllocationStatus @default(ACTIVE)
-  allocatedAt   DateTime
+  allocatedAt DateTime @db.Timestamptz(3)
   allocatedById String?  @db.Uuid
   /// Condition recorded at hand-over and at return - the basis for damage
   /// recovery conversations.
   conditionOut  AssetCondition @default(GOOD)
-  expectedReturnAt DateTime?
+  expectedReturnAt DateTime? @db.Timestamptz(3)
 
-  returnedAt    DateTime?
+  returnedAt DateTime? @db.Timestamptz(3)
   returnedToById String? @db.Uuid
   conditionIn   AssetCondition?
   returnRemarks String?
 
   /// Signed hand-over acknowledgement (scan or e-sign payload).
-  acknowledgedAt DateTime?
+  acknowledgedAt DateTime? @db.Timestamptz(3)
   acknowledgementRef String?
 
   remarks       String?
@@ -974,13 +974,13 @@ model AssetAllocation {
   sourceType    SourceType @default(MANUAL)
   sourceRef     String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   createdById   String?  @db.Uuid
   updatedById   String?  @db.Uuid
   /// Allocations are historical record - soft delete exists only so a
   /// mis-keyed row can be voided, and it still stays visible in history.
-  deletedAt     DateTime?
+  deletedAt DateTime? @db.Timestamptz(3)
   deletedById   String?  @db.Uuid
   voidReason    String?
 
@@ -998,7 +998,7 @@ model AssetEvent {
   asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
 
   eventType   AssetEventType
-  occurredAt  DateTime @default(now())
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
   /// Free-text line rendered on the asset timeline in the UI.
   summary     String
   fromValue   Json?
@@ -1011,7 +1011,7 @@ model AssetEvent {
   actorName   String?
   ipAddress   String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([assetId, occurredAt])
   @@index([eventType])
@@ -1030,7 +1030,7 @@ model RepairTicket {
 
   reportedById   String?  @db.Uuid
   reportedBy     Employee? @relation("RepairReporter", fields: [reportedById], references: [id], onDelete: Restrict)
-  reportedAt     DateTime @default(now())
+  reportedAt DateTime @default(now()) @db.Timestamptz(3)
   faultCategory  String?
   faultDescription String
 
@@ -1039,9 +1039,9 @@ model RepairTicket {
 
   vendorId       String?  @db.Uuid
   vendor         Vendor?  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  sentToVendorAt DateTime?
-  expectedBackAt DateTime?
-  receivedBackAt DateTime?
+  sentToVendorAt DateTime? @db.Timestamptz(3)
+  expectedBackAt DateTime? @db.Timestamptz(3)
+  receivedBackAt DateTime? @db.Timestamptz(3)
 
   estimatedCost  Decimal? @db.Decimal(14, 2)
   actualCost     Decimal? @db.Decimal(14, 2)
@@ -1051,15 +1051,15 @@ model RepairTicket {
   recoveryAmount Decimal? @db.Decimal(14, 2)
 
   resolution     String?
-  closedAt       DateTime?
+  closedAt DateTime? @db.Timestamptz(3)
   closedById     String?  @db.Uuid
 
   logs           RepairLog[]
   attachments    Attachment[]
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
@@ -1080,7 +1080,7 @@ model RepairLog {
   note       String?
   actorUserId String? @db.Uuid
   actorName  String?
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([ticketId, createdAt])
   @@map("repair_logs")
@@ -1094,20 +1094,20 @@ model DamageReport {
   reportedById String?  @db.Uuid
   reportedBy   Employee? @relation(fields: [reportedById], references: [id], onDelete: Restrict)
 
-  occurredAt   DateTime?
+  occurredAt DateTime? @db.Timestamptz(3)
   description  String
   severity     String   @default("MINOR")
   /// Links to the repair raised off the back of this report, if any.
   repairTicketId String? @db.Uuid
   reviewedById String?  @db.Uuid
-  reviewedAt   DateTime?
+  reviewedAt DateTime? @db.Timestamptz(3)
   reviewOutcome String?
 
   attachments  Attachment[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById  String?  @db.Uuid
   updatedById  String?  @db.Uuid
   deletedById  String?  @db.Uuid
@@ -1137,8 +1137,8 @@ model HeadphoneDetail {
   /// Contact-centre hygiene rule: headsets are personal issue once assigned.
   isPersonalIssue Boolean @default(true)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@map("headphone_details")
 }
@@ -1167,9 +1167,9 @@ model Workstation {
   allocations WorkstationAllocation[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -1189,12 +1189,12 @@ model WorkstationAllocation {
 
   shift         String?
   status        AllocationStatus @default(ACTIVE)
-  allocatedAt   DateTime
-  releasedAt    DateTime?
+  allocatedAt DateTime @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
   remarks       String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   createdById   String?  @db.Uuid
   updatedById   String?  @db.Uuid
 
@@ -1226,9 +1226,9 @@ model Locker {
   allocations LockerAllocation[]
 
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -1247,14 +1247,14 @@ model LockerAllocation {
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   status      AllocationStatus @default(ACTIVE)
-  allocatedAt DateTime
-  releasedAt  DateTime?
+  allocatedAt DateTime @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
   keyIssued   Boolean  @default(true)
   keyReturned Boolean  @default(false)
   remarks     String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
 
@@ -1288,9 +1288,9 @@ model CugConnection {
   allocations  CugAllocation[]
 
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById  String?  @db.Uuid
   updatedById  String?  @db.Uuid
   deletedById  String?  @db.Uuid
@@ -1308,13 +1308,13 @@ model CugAllocation {
   employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   status       AllocationStatus @default(ACTIVE)
-  allocatedAt  DateTime
-  releasedAt   DateTime?
+  allocatedAt DateTime @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
   handsetAssetId String? @db.Uuid
   remarks      String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   createdById  String?  @db.Uuid
   updatedById  String?  @db.Uuid
 
@@ -1349,9 +1349,9 @@ model StockItem {
   transactions StockTransaction[]
 
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById  String?  @db.Uuid
   updatedById  String?  @db.Uuid
   deletedById  String?  @db.Uuid
@@ -1379,8 +1379,8 @@ model StockTransaction {
 
   actorUserId  String?  @db.Uuid
   actorName    String?
-  occurredAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([stockItemId, occurredAt])
   @@map("stock_transactions")
@@ -1411,7 +1411,7 @@ model AssetRequest {
 
   /// Set once fulfilled, so the request links to what was actually handed over.
   fulfilledAssetIds Json  @default("[]")
-  fulfilledAt   DateTime?
+  fulfilledAt DateTime? @db.Timestamptz(3)
   fulfilledById String?  @db.Uuid
 
   approvalRequestId String? @unique @db.Uuid
@@ -1419,9 +1419,9 @@ model AssetRequest {
 
   attachments   Attachment[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById   String?  @db.Uuid
   updatedById   String?  @db.Uuid
   deletedById   String?  @db.Uuid
@@ -1453,18 +1453,18 @@ model ApprovalRequest {
 
   raisedById    String   @db.Uuid
   raisedByName  String
-  raisedAt      DateTime @default(now())
+  raisedAt DateTime @default(now()) @db.Timestamptz(3)
 
   steps         ApprovalStep[]
   assetRequest  AssetRequest?
 
-  decidedAt     DateTime?
-  appliedAt     DateTime?
+  decidedAt DateTime? @db.Timestamptz(3)
+  appliedAt DateTime? @db.Timestamptz(3)
   applyError    String?
-  expiresAt     DateTime?
+  expiresAt DateTime? @db.Timestamptz(3)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([status, changeType])
   @@index([targetTable, targetId])
@@ -1486,12 +1486,12 @@ model ApprovalStep {
 
   decidedById String?  @db.Uuid
   decidedBy   User?    @relation("ApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
-  decidedAt   DateTime?
+  decidedAt DateTime? @db.Timestamptz(3)
   comment     String?
   ipAddress   String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([requestId, sequence])
   @@index([status, assignedRoleKey])
@@ -1509,8 +1509,8 @@ model PhysicalAudit {
   branchId    String?  @db.Uuid
   locationId  String?  @db.Uuid
   scheduledFor DateTime? @db.Date
-  startedAt   DateTime?
-  completedAt DateTime?
+  startedAt DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
   /// PLANNED | IN_PROGRESS | COMPLETED | ABANDONED
   status      String   @default("PLANNED")
   conductedById String? @db.Uuid
@@ -1518,9 +1518,9 @@ model PhysicalAudit {
 
   lines       PhysicalAuditLine[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   deletedById String?  @db.Uuid
@@ -1539,13 +1539,13 @@ model PhysicalAuditLine {
   foundLocationId    String? @db.Uuid
   /// PENDING | VERIFIED | MISPLACED | MISSING | EXTRA | DAMAGED
   finding     String   @default("PENDING")
-  scannedAt   DateTime?
+  scannedAt DateTime? @db.Timestamptz(3)
   scannedById String?  @db.Uuid
   conditionFound AssetCondition?
   remarks     String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([auditId, assetId])
   @@index([finding])
@@ -1591,7 +1591,7 @@ model AuditLog {
   refType     String?
   refId       String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([entityType, entityId, createdAt])
   @@index([userId, createdAt])
@@ -1621,8 +1621,8 @@ model Attachment {
   assetRequest   AssetRequest? @relation(fields: [assetRequestId], references: [id], onDelete: Cascade)
 
   uploadedById String? @db.Uuid
-  createdAt    DateTime @default(now())
-  deletedAt    DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   deletedById  String?  @db.Uuid
 
   @@index([assetId])
@@ -1640,9 +1640,9 @@ model Notification {
   linkUrl   String?
   data      Json     @default("{}")
 
-  readAt    DateTime?
-  emailedAt DateTime?
-  createdAt DateTime @default(now())
+  readAt DateTime? @db.Timestamptz(3)
+  emailedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([userId, readAt, createdAt])
   @@map("notifications")
@@ -1654,7 +1654,7 @@ model SystemSetting {
   description String?
   /// Settings flagged sensitive are redacted in API responses and audit logs.
   isSensitive Boolean  @default(false)
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   updatedById String?  @db.Uuid
 
   @@map("system_settings")
@@ -1698,7 +1698,7 @@ model SyncSource {
   /// Set true by a ONE_TIME_MIGRATION, or manually via "Disconnect".
   /// A disconnected source can never run again without an explicit reconnect.
   isDisconnected Boolean  @default(false)
-  disconnectedAt DateTime?
+  disconnectedAt DateTime? @db.Timestamptz(3)
   disconnectedById String? @db.Uuid
 
   /// When true a run only reports what it *would* do and writes nothing.
@@ -1706,8 +1706,8 @@ model SyncSource {
   /// Update rows that already exist, or only insert brand-new ones.
   allowUpdates   Boolean  @default(true)
 
-  lastRunAt      DateTime?
-  lastSuccessAt  DateTime?
+  lastRunAt DateTime? @db.Timestamptz(3)
+  lastSuccessAt DateTime? @db.Timestamptz(3)
   lastRowCount   Int?
   lastError      String?
 
@@ -1715,9 +1715,9 @@ model SyncSource {
   runs           SyncRun[]
 
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
   createdById    String?  @db.Uuid
   updatedById    String?  @db.Uuid
   deletedById    String?  @db.Uuid
@@ -1748,8 +1748,8 @@ model SyncColumnMapping {
   /// Ignore this column entirely (kept for documentation).
   isIgnored    Boolean @default(false)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([sourceId, sourceHeader])
   @@map("sync_column_mappings")
@@ -1766,8 +1766,8 @@ model SyncRun {
 
   triggeredById String?  @db.Uuid
   triggeredByName String?
-  startedAt     DateTime @default(now())
-  finishedAt    DateTime?
+  startedAt DateTime @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
   durationMs    Int?
 
   rowsRead      Int @default(0)
@@ -1783,7 +1783,7 @@ model SyncRun {
   /// admin to confirm rather than applying a huge change blindly.
   confirmationToken String?
   confirmedById String?  @db.Uuid
-  confirmedAt   DateTime?
+  confirmedAt DateTime? @db.Timestamptz(3)
 
   errorMessage  String?
   errorDetail   Json?
@@ -1792,7 +1792,7 @@ model SyncRun {
 
   rows          SyncRow[]
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([sourceId, startedAt])
   @@index([status])
@@ -1822,7 +1822,7 @@ model SyncRow {
   /// Validation errors / conflict explanations shown in the sync report.
   messages    Json     @default("[]")
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([runId, status])
   @@index([dedupeKey])
@@ -1840,8 +1840,8 @@ model BackupRun {
   format       BackupFormat @default(PG_DUMP)
   status       BackupStatus @default(RUNNING)
 
-  startedAt    DateTime @default(now())
-  finishedAt   DateTime?
+  startedAt DateTime @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
   durationMs   Int?
 
   filePath     String?
@@ -1854,14 +1854,14 @@ model BackupRun {
   tableCounts  Json     @default("{}")
 
   /// Daily backups keep the newest 90; weekly archives keep 52.
-  retainUntil  DateTime?
-  prunedAt     DateTime?
+  retainUntil DateTime? @db.Timestamptz(3)
+  prunedAt DateTime? @db.Timestamptz(3)
 
   triggeredById String? @db.Uuid
   triggeredByName String?
   errorMessage String?
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([type, startedAt])
   @@index([status])
