@@ -13,11 +13,16 @@
 import './load-env'; // must come first: populates process.env
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { randomBytes } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Writable } from 'node:stream';
 import { stdin, stdout } from 'node:process';
 
 const prisma = new PrismaClient();
+
+const flag = (name: string): boolean => process.argv.includes(`--${name}`);
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -60,6 +65,33 @@ function promptHidden(question: string): Promise<string> {
   });
 }
 
+/**
+ * A readable, strong, randomly generated password.
+ *
+ * Used only to bootstrap an account. It is written to a file rather than
+ * printed, so it never lands in a terminal transcript, a chat log, or a
+ * screenshot, and the account is flagged mustChangePassword.
+ */
+function generatePassword(): string {
+  const words = [
+    'harbour', 'lantern', 'meadow', 'granite', 'compass', 'thicket',
+    'marble', 'cinder', 'willow', 'quarry', 'kestrel', 'bramble',
+    'anvil', 'copper', 'drift', 'ember', 'fathom', 'juniper',
+  ];
+  const symbols = '!@#$%^&*?-+=';
+  const pick = <T,>(arr: readonly T[]): T =>
+    arr[randomBytes(2).readUInt16BE(0) % arr.length] as T;
+
+  const a = pick(words);
+  const b = pick(words);
+  const c = pick(words);
+  const digits = String(randomBytes(2).readUInt16BE(0) % 9000 + 1000);
+  const sym = pick([...symbols]);
+
+  // Capitalised first word guarantees the uppercase requirement.
+  return `${a[0]!.toUpperCase()}${a.slice(1)}-${b}-${c}${digits}${sym}`;
+}
+
 function checkStrength(password: string): string[] {
   const min = Number(process.env.PASSWORD_MIN_LENGTH ?? 12);
   const problems: string[] = [];
@@ -87,6 +119,52 @@ async function main(): Promise<void> {
     console.error(`No user with email "${email}".`);
     console.error(`Known accounts: ${all.map((u) => u.email).join(', ') || '(none)'}`);
     process.exit(1);
+  }
+
+  // --generate: no prompt, no credential in anyone's terminal or transcript.
+  if (flag('generate')) {
+    const generated = generatePassword();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await argon2.hash(generated, { type: argon2.argon2id }),
+        mustChangePassword: true,
+        passwordChangedAt: new Date(),
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: 'PASSWORD_RESET_CLI' },
+    });
+
+    const outPath = resolve(process.cwd(), '../../FIRST-LOGIN.txt');
+    writeFileSync(
+      outPath,
+      [
+        'Inventory Suite - first sign-in details',
+        '',
+        `Sign in at : http://localhost:3000/login`,
+        `Email      : ${email}`,
+        `Password   : ${generated}`,
+        '',
+        'This password was generated locally and written straight to this file.',
+        'It was never displayed on screen, so it is not in any terminal history',
+        'or chat transcript.',
+        '',
+        'Change it after signing in, then delete this file.',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    console.log('A password was generated and written to:');
+    console.log(`  ${outPath}`);
+    console.log('');
+    console.log('Open that file for your sign-in details. Delete it once you have');
+    console.log('changed the password.');
+    return;
   }
 
   // A hidden prompt needs a real terminal. Refuse up front rather than

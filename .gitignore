@@ -13,6 +13,7 @@ coverage/
 
 # Secrets - never commit
 secrets/
+FIRST-LOGIN.txt
 *.pem
 *.key
 google-service-account*.json
