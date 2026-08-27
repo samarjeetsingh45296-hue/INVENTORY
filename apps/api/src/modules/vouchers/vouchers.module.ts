@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Inject, Module, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException, Body, Controller, Get, Inject, Module, Param, Post, Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuditAction, Prisma, VoucherStatus } from '@prisma/client';
 import { CurrentUser, RequirePermissions } from '../../common/decorators';
@@ -24,11 +26,11 @@ class VouchersController {
   @Get()
   async list(
     @Query('page') page = '1',
-    @Query('pageSize') pageSize = '50',
+    @Query('pageSize') pageSize = '200',
     @Query('search') search?: string,
     @Query('status') status?: VoucherStatus,
   ) {
-    const take = Math.min(Number(pageSize) || 50, 200);
+    const take = Math.min(Number(pageSize) || 200, 500);
     const where: Prisma.VoucherWhereInput = {
       ...(status ? { status } : {}),
       ...(search
@@ -43,31 +45,21 @@ class VouchersController {
         : {}),
     };
 
-    const [items, total, byStatus, byBook] = await Promise.all([
+    const [items, total, byStatus] = await Promise.all([
       this.prisma.voucher.findMany({
         where,
         include: {
           issuedTo: { select: { id: true, fullName: true, employeeCode: true } },
         },
-        orderBy: [{ voucherNo: 'asc' }, { serialNo: 'asc' }],
+        // Serial number is the card's position in the drawer, so ordering by
+        // it lists the cards the way somebody counting them would.
+        orderBy: [{ serialNo: 'asc' }, { voucherNo: 'asc' }],
         take,
         skip: ((Number(page) || 1) - 1) * take,
       }),
       this.prisma.voucher.count({ where }),
       this.prisma.voucher.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.prisma.voucher.groupBy({
-        by: ['voucherNo'],
-        _count: { _all: true },
-        orderBy: { voucherNo: 'asc' },
-      }),
     ]);
-
-    // How many cards remain in each book - the question the store actually asks.
-    const remaining = await this.prisma.voucher.groupBy({
-      by: ['voucherNo'],
-      where: { status: VoucherStatus.AVAILABLE },
-      _count: { _all: true },
-    });
 
     return {
       items: items.map((v) => ({
@@ -76,12 +68,6 @@ class VouchersController {
       })),
       summary: {
         byStatus: byStatus.map((s) => ({ status: s.status, count: s._count._all })),
-        books: byBook.map((b) => ({
-          voucherNo: b.voucherNo,
-          total: b._count._all,
-          available:
-            remaining.find((r) => r.voucherNo === b.voucherNo)?._count._all ?? 0,
-        })),
       },
       page: Number(page) || 1,
       pageSize: take,
@@ -89,106 +75,103 @@ class VouchersController {
       totalPages: Math.ceil(total / take),
     };
   }
-  /** Issue a card to someone. */
+  /**
+   * Set a card's state, and the holder that goes with it.
+   *
+   * Status drives the record: moving to ISSUED requires a name and stamps the
+   * date; moving back to AVAILABLE clears both, because a card in the drawer
+   * has no holder. The names of previous holders are not lost - every change
+   * is on the audit trail.
+   */
   @RequirePermissions('asset.update')
-  @Post(':id/issue')
-  async issue(
+  @Post(':id/status')
+  async setStatus(
     @Param('id') id: string,
-    @Body() body: { employeeId?: string; issuedToName?: string; purpose?: string },
+    @Body() body: { status: VoucherStatus; issuedToName?: string; employeeId?: string; notes?: string },
     @CurrentUser() user: Principal,
   ) {
     const voucher = await this.prisma.voucher.findFirstOrThrow({ where: { id } });
-    if (voucher.status !== VoucherStatus.AVAILABLE) {
-      throw new Error(
-        `Card ${voucher.voucherNo} is already ${voucher.status.toLowerCase()}.`,
-      );
+    const status = body.status;
+
+    const name = (body.issuedToName ?? '').trim();
+    if (status === VoucherStatus.ISSUED && !name && !body.employeeId && !voucher.issuedToName) {
+      throw new BadRequestException('Say who the card is being issued to.');
     }
 
     const employee = body.employeeId
       ? await this.prisma.employee.findFirstOrThrow({ where: { id: body.employeeId } })
       : null;
 
+    const backInDrawer = status === VoucherStatus.AVAILABLE;
+    const holderName = employee?.fullName ?? (name || voucher.issuedToName);
+
     const updated = await this.prisma.voucher.update({
       where: { id },
       data: {
-        status: VoucherStatus.ISSUED,
-        issuedToEmployeeId: employee?.id ?? null,
-        issuedToName: employee?.fullName ?? body.issuedToName ?? null,
-        issuedByName: user.displayName,
-        issuedAt: new Date(),
-        purpose: body.purpose ?? voucher.purpose,
+        status,
+        issuedToEmployeeId: backInDrawer ? null : (employee?.id ?? voucher.issuedToEmployeeId),
+        issuedToName: backInDrawer ? null : holderName,
+        issuedByName: status === VoucherStatus.ISSUED ? user.displayName : voucher.issuedByName,
+        issuedAt: backInDrawer
+          ? null
+          : (status === VoucherStatus.ISSUED ? (voucher.issuedAt ?? new Date()) : voucher.issuedAt),
+        notes: body.notes ?? voucher.notes,
         updatedById: user.userId,
       },
+      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true } } },
     });
 
     await this.audit.record({
-      action: AuditAction.ALLOCATE,
+      action:
+        status === VoucherStatus.ISSUED
+          ? AuditAction.ALLOCATE
+          : backInDrawer
+            ? AuditAction.RETURN
+            : AuditAction.UPDATE,
       entityType: 'Voucher',
       entityId: id,
       entityLabel: `PVR card ${voucher.voucherNo}`,
       oldValue: { status: voucher.status, issuedToName: voucher.issuedToName },
       newValue: { status: updated.status, issuedToName: updated.issuedToName },
-      summary: `PVR card ${voucher.voucherNo} issued to ${updated.issuedToName ?? 'someone'}`,
+      summary:
+        `PVR card ${voucher.voucherNo}: ${voucher.status.toLowerCase()} to ` +
+        `${updated.status.toLowerCase()}` +
+        (updated.issuedToName ? ` (${updated.issuedToName})` : ''),
     });
+
     return { ...updated, faceValue: updated.faceValue ? Number(updated.faceValue) : null };
   }
 
-  /**
-   * Put a card back in the drawer. The previous holder stays on the audit
-   * trail; only the current state is cleared.
-   */
+  /** Rename the holder without changing the card's state. */
   @RequirePermissions('asset.update')
-  @Post(':id/return')
-  async unissue(@Param('id') id: string, @CurrentUser() user: Principal) {
-    const voucher = await this.prisma.voucher.findFirstOrThrow({ where: { id } });
-
-    const updated = await this.prisma.voucher.update({
-      where: { id },
-      data: {
-        status: VoucherStatus.AVAILABLE,
-        issuedToEmployeeId: null,
-        issuedToName: null,
-        issuedAt: null,
-        updatedById: user.userId,
-      },
-    });
-
-    await this.audit.record({
-      action: AuditAction.RETURN,
-      entityType: 'Voucher',
-      entityId: id,
-      entityLabel: `PVR card ${voucher.voucherNo}`,
-      oldValue: { status: voucher.status, issuedToName: voucher.issuedToName },
-      newValue: { status: updated.status, issuedToName: null },
-      summary: `PVR card ${voucher.voucherNo} returned by ${voucher.issuedToName ?? 'holder'}`,
-    });
-    return { ...updated, faceValue: updated.faceValue ? Number(updated.faceValue) : null };
-  }
-
-  /** Mark a card used, lost or void without it going back into stock. */
-  @RequirePermissions('asset.update')
-  @Post(':id/status')
-  async setStatus(
+  @Post(':id/holder')
+  async setHolder(
     @Param('id') id: string,
-    @Body() body: { status: VoucherStatus; notes?: string },
+    @Body() body: { issuedToName: string },
     @CurrentUser() user: Principal,
   ) {
     const voucher = await this.prisma.voucher.findFirstOrThrow({ where: { id } });
+    const name = (body.issuedToName ?? '').trim();
+
     const updated = await this.prisma.voucher.update({
       where: { id },
-      data: { status: body.status, notes: body.notes ?? voucher.notes, updatedById: user.userId },
+      data: { issuedToName: name || null, updatedById: user.userId },
+      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true } } },
     });
+
     await this.audit.record({
       action: AuditAction.UPDATE,
       entityType: 'Voucher',
       entityId: id,
       entityLabel: `PVR card ${voucher.voucherNo}`,
-      oldValue: { status: voucher.status },
-      newValue: { status: updated.status },
-      summary: `PVR card ${voucher.voucherNo}: ${voucher.status} to ${updated.status}`,
+      oldValue: { issuedToName: voucher.issuedToName },
+      newValue: { issuedToName: updated.issuedToName },
+      summary: `PVR card ${voucher.voucherNo} holder set to ${updated.issuedToName ?? 'nobody'}`,
     });
+
     return { ...updated, faceValue: updated.faceValue ? Number(updated.faceValue) : null };
   }
+
 }
 
 @Module({ controllers: [VouchersController] })

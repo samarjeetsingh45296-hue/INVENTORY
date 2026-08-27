@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Search, Ticket } from 'lucide-react';
+import { Search, Ticket, Pencil } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -20,17 +20,13 @@ interface Row {
   issuedAt: string | null;
   issuedToName: string | null;
   issuedByName: string | null;
-  purpose: string | null;
   notes: string | null;
   issuedTo: { id: string; fullName: string; employeeCode: string } | null;
 }
 
 interface Page {
   items: Row[];
-  summary: {
-    byStatus: Array<{ status: string; count: number }>;
-    books: Array<{ voucherNo: string; total: number; available: number }>;
-  };
+  summary: { byStatus: Array<{ status: string; count: number }> };
   page: number; total: number; totalPages: number;
 }
 
@@ -41,11 +37,11 @@ export default function VouchersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
 
   const params = new URLSearchParams({
-    page: String(page), pageSize: '50',
-    ...(search ? { search } : {}), ...(status ? { status } : {}),
+    pageSize: '500',
+    ...(search ? { search } : {}),
+    ...(status ? { status } : {}),
   });
 
   const q = useQuery({
@@ -56,17 +52,22 @@ export default function VouchersPage() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['vouchers'] });
 
-  const issue = useMutation({
-    mutationFn: (vars: { id: string; issuedToName: string; purpose: string }) =>
-      api(`/vouchers/${vars.id}/issue`, {
+  /** Status drives the record - the holder travels with it. */
+  const setCardStatus = useMutation({
+    mutationFn: (vars: { id: string; status: string; issuedToName?: string }) =>
+      api(`/vouchers/${vars.id}/status`, {
         method: 'POST',
-        body: { issuedToName: vars.issuedToName, purpose: vars.purpose },
+        body: { status: vars.status, issuedToName: vars.issuedToName },
       }),
     onSuccess: refresh,
   });
 
-  const unissue = useMutation({
-    mutationFn: (id: string) => api(`/vouchers/${id}/return`, { method: 'POST' }),
+  const setHolder = useMutation({
+    mutationFn: (vars: { id: string; issuedToName: string }) =>
+      api(`/vouchers/${vars.id}/holder`, {
+        method: 'POST',
+        body: { issuedToName: vars.issuedToName },
+      }),
     onSuccess: refresh,
   });
 
@@ -75,169 +76,165 @@ export default function VouchersPage() {
   );
   const canWrite = can('asset.update');
 
+  function onStatusChange(row: Row, next: string) {
+    if (next === row.status) return;
+    // Issuing needs a name; nothing else does.
+    if (next === 'ISSUED') {
+      const who = window.prompt(
+        `Issue card ${row.voucherNo} (no. ${row.serialNo ?? '-'}) to whom?`,
+        row.issuedToName ?? '',
+      );
+      if (!who || !who.trim()) return;
+      setCardStatus.mutate({ id: row.id, status: next, issuedToName: who.trim() });
+      return;
+    }
+    if (next === 'AVAILABLE' && row.issuedToName) {
+      const ok = window.confirm(
+        `Put card ${row.voucherNo} back in the drawer?\n\n` +
+          `${row.issuedToName} will be cleared from the card. The change stays on the audit trail.`,
+      );
+      if (!ok) return;
+    }
+    setCardStatus.mutate({ id: row.id, status: next });
+  }
+
   return (
     <>
       <PageHeader
         title="PVR cards"
-        description="Movie vouchers held for rewards. One row is one card; the printed number repeats across a book of ten."
+        description="Movie vouchers held for rewards. One row is one card - set its status and the holder travels with it."
       />
 
       <div className="mb-3 grid gap-2 sm:grid-cols-4">
         <StatCard label="Cards" value={q.data?.total ?? '-'} />
         <StatCard label="In the drawer" value={counts.AVAILABLE ?? 0} tone="ok" />
         <StatCard label="Issued" value={counts.ISSUED ?? 0} />
-        <StatCard label="Books" value={q.data?.summary.books.length ?? '-'} />
+        <StatCard
+          label="Used or gone"
+          value={
+            (counts.REDEEMED ?? 0) + (counts.EXPIRED ?? 0) +
+            (counts.VOID ?? 0) + (counts.LOST ?? 0)
+          }
+        />
       </div>
-
-      {q.data && q.data.summary.books.length > 0 && (
-        <section className="card mb-3 p-3">
-          <h2 className="mb-2 text-[12px] font-semibold">Books</h2>
-          <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-            {q.data.summary.books.map((b) => (
-              <li
-                key={b.voucherNo}
-                className="flex items-baseline justify-between gap-2 rounded-md border border-[rgb(var(--border))] px-2.5 py-1.5 text-[12px]"
-              >
-                <span className="font-mono text-[11px] text-[rgb(var(--text-2))]">
-                  {b.voucherNo}
-                </span>
-                <span className="tabular-nums">
-                  <span
-                    className="font-medium"
-                    style={{ color: b.available === 0 ? 'rgb(var(--muted))' : 'rgb(var(--text))' }}
-                  >
-                    {b.available}
-                  </span>
-                  <span className="text-[rgb(var(--muted))]"> of {b.total} left</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <div className="card mb-3 flex flex-wrap items-center gap-2 p-2">
         <div className="relative max-w-xs flex-1" style={{ minWidth: '13rem' }}>
           <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgb(var(--muted))]" />
           <input
             className="input pl-7"
-            placeholder="Card number, holder or purpose"
+            placeholder="Card number or holder"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <select
           className="input max-w-[10rem]"
           value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+          onChange={(e) => setStatus(e.target.value)}
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>{s.toLowerCase()}</option>
           ))}
         </select>
+        {q.data && (
+          <span className="ml-auto text-[11px] text-[rgb(var(--muted))]">
+            showing {q.data.items.length} of {q.data.total} cards
+          </span>
+        )}
       </div>
 
       {q.isError && <div className="mb-3"><ErrorNote error={q.error} /></div>}
-      {(issue.isError || unissue.isError) && (
-        <div className="mb-3"><ErrorNote error={issue.error ?? unissue.error} /></div>
+      {(setCardStatus.isError || setHolder.isError) && (
+        <div className="mb-3">
+          <ErrorNote error={setCardStatus.error ?? setHolder.error} />
+        </div>
       )}
 
       {!q.isLoading && q.data?.items.length === 0 ? (
         <EmptyState message="No cards match" />
       ) : (
         <div className="card overflow-x-auto">
-          <table className="table" style={{ minWidth: '50rem' }}>
+          <table className="table" style={{ minWidth: '46rem' }}>
             <thead>
               <tr>
-                <th className="th">Card number</th>
                 <th className="th">No.</th>
+                <th className="th">Card number</th>
                 <th className="th">Status</th>
                 <th className="th">Issued to</th>
-                <th className="th">Purpose</th>
                 <th className="th">Received</th>
                 <th className="th">Issued</th>
-                {canWrite && <th className="th text-right">Action</th>}
               </tr>
             </thead>
-            {q.isLoading ? <TableSkeleton rows={10} cols={canWrite ? 8 : 7} /> : (
+            {q.isLoading ? <TableSkeleton rows={12} cols={6} /> : (
               <tbody>
                 {(q.data?.items ?? []).map((v) => (
                   <tr key={v.id} className="row">
-                    <td className="td font-mono text-[11px] text-[rgb(var(--text))]">
+                    <td className="td num font-medium text-[rgb(var(--text))]">
+                      {v.serialNo ?? '-'}
+                    </td>
+                    <td className="td font-mono text-[11px]">
                       <span className="inline-flex items-center gap-1.5">
                         <Ticket size={12} className="text-[rgb(var(--muted))]" />
                         {v.voucherNo}
                       </span>
                     </td>
-                    <td className="td num">{v.serialNo ?? '-'}</td>
-                    <td className="td"><StatusBadge status={v.status} /></td>
+                    <td className="td">
+                      {canWrite ? (
+                        <select
+                          className="input"
+                          style={{ maxWidth: '9rem' }}
+                          value={v.status}
+                          disabled={setCardStatus.isPending}
+                          onChange={(e) => onStatusChange(v, e.target.value)}
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s} value={s}>{s.toLowerCase()}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <StatusBadge status={v.status} />
+                      )}
+                    </td>
                     <td className="td">
                       {v.issuedTo ? (
                         <Link href={`/employees/${v.issuedTo.id}`} className="link">
                           {v.issuedTo.fullName}
                         </Link>
                       ) : v.issuedToName ? (
-                        <span title="Name recorded in the sheet, not matched to an employee on file">
+                        <span className="inline-flex items-center gap-1.5">
                           {v.issuedToName}
-                          <span className="ml-1 text-[rgb(var(--warn))]">unmatched</span>
+                          {canWrite && (
+                            <button
+                              className="btn-quiet btn-icon"
+                              title="Change the name"
+                              onClick={() => {
+                                const who = window.prompt('Issued to', v.issuedToName ?? '');
+                                if (who !== null) {
+                                  setHolder.mutate({ id: v.id, issuedToName: who.trim() });
+                                }
+                              }}
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          )}
                         </span>
                       ) : (
                         <span className="text-[rgb(var(--muted))]">-</span>
                       )}
                     </td>
-                    <td className="td">{v.purpose ?? '-'}</td>
                     <td className="td whitespace-nowrap">
                       {v.receivedAt ? format(new Date(v.receivedAt), 'd MMM yy') : '-'}
                     </td>
                     <td className="td whitespace-nowrap">
                       {v.issuedAt ? format(new Date(v.issuedAt), 'd MMM yy') : '-'}
                     </td>
-                    {canWrite && (
-                      <td className="td text-right">
-                        {v.status === 'AVAILABLE' ? (
-                          <button
-                            className="btn-ghost"
-                            onClick={() => {
-                              const who = window.prompt(`Issue card ${v.voucherNo} to whom?`);
-                              if (!who) return;
-                              const why = window.prompt('Purpose (optional)', v.purpose ?? '') ?? '';
-                              issue.mutate({ id: v.id, issuedToName: who, purpose: why });
-                            }}
-                          >
-                            Issue
-                          </button>
-                        ) : v.status === 'ISSUED' ? (
-                          <button
-                            className="btn-quiet"
-                            onClick={() => {
-                              if (window.confirm(`Put card ${v.voucherNo} back in the drawer?`)) {
-                                unissue.mutate(v.id);
-                              }
-                            }}
-                          >
-                            Return
-                          </button>
-                        ) : null}
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
             )}
           </table>
-        </div>
-      )}
-
-      {q.data && q.data.totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between text-[12px]">
-          <p className="text-[rgb(var(--muted))]">
-            {q.data.total} cards - page {q.data.page} of {q.data.totalPages}
-          </p>
-          <div className="flex gap-1.5">
-            <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
-            <button className="btn-ghost" disabled={page >= q.data.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
-          </div>
         </div>
       )}
     </>
