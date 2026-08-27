@@ -3,13 +3,28 @@
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 
+/** Initials avatar - two letters from the name, deterministic, no image. */
+export function Avatar({ name, size }: { name: string; size?: 'lg' }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('');
+  return (
+    <span className={size === 'lg' ? 'avatar avatar-lg' : 'avatar'} aria-hidden>
+      {initials || '?'}
+    </span>
+  );
+}
+
 export function PageHeader({
   title, description, actions,
 }: { title: string; description?: string; actions?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-[15px] font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-[17px] font-semibold tracking-tight">{title}</h1>
         {description && (
           <p className="mt-0.5 max-w-2xl text-[12px] leading-relaxed text-[rgb(var(--muted))]">
             {description}
@@ -37,7 +52,7 @@ export function StatCard({
   }[tone];
 
   return (
-    <div className="card px-3 py-2.5">
+    <div className="card card-hover px-3 py-2.5">
       <p className="text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--muted))]">
         {label}
       </p>

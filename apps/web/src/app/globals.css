@@ -3,24 +3,27 @@
 @tailwind utilities;
 
 /* ---------------------------------------------------------------------------
-   Monochrome palette. One neutral ramp carries the whole interface and a
-   single accent is reserved for the primary action on a screen, so the eye
-   goes to the thing that matters rather than to decoration.
+   Monochrome system, second pass.
+
+   Same idea as before - one neutral ramp, one accent reserved for the primary
+   action - but with depth: layered surfaces, one soft shadow scale, and a
+   consistent radius scale, so the interface reads as designed rather than
+   unstyled.
 --------------------------------------------------------------------------- */
 
 :root {
-  --bg:          255 255 255;
+  --bg:          250 250 249;
   --surface:     255 255 255;
-  --surface-2:   249 250 251;
-  --surface-3:   243 244 246;
-  --border:      229 231 235;
-  --border-hard: 209 213 219;
-  --text:         17  24  39;
-  --text-2:       75  85  99;
-  --muted:       107 114 128;
-  --accent:       17  24  39;
+  --surface-2:   249 249 248;
+  --surface-3:   241 241 239;
+  --border:      231 231 228;
+  --border-hard: 209 209 205;
+  --text:         23  23  23;
+  --text-2:       82  82  80;
+  --muted:       130 130 126;
+  --accent:       23  23  23;
   --accent-fg:   255 255 255;
-  --ring:         17  24  39;
+  --ring:         23  23  23;
 
   --ok:      21 128  61;
   --ok-bg:  240 253 244;
@@ -31,13 +34,11 @@
   --info:    29  78 216;
   --info-bg:239 246 255;
 
-  /* ------------------------------------------------------------ chart ink --
-     Not currently used - no chart is rendered anywhere yet, by request.
-     Kept because the values are the expensive part: categorical slots 1 and 2
-     of the reference palette, validated against this app's own light surface
-     (#ffffff) rather than the palette default, worst adjacent CVD dE 24.7
-     against a target of 8, all six checks passing. Status hues are reserved
-     and must never be reused as a series colour. */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
+  --shadow-lg: 0 2px 4px 0 rgb(0 0 0 / 0.05), 0 24px 48px -12px rgb(0 0 0 / 0.18);
+
+  /* chart ink - unused until charts are requested; values are validated */
   --viz-1:        #2a78d6;
   --viz-2:        #eb6834;
   --viz-good:     #0ca30c;
@@ -47,31 +48,32 @@
 }
 
 .dark {
-  --bg:            9  9  11;
+  --bg:           11  11  12;
   --surface:      24  24  27;
-  --surface-2:    32  32  36;
+  --surface-2:    31  31  35;
   --surface-3:    39  39  44;
   --border:       39  39  44;
   --border-hard:  63  63  70;
-  --text:        250 250 250;
-  --text-2:      212 212 216;
-  --muted:       161 161 170;
-  --accent:      250 250 250;
-  --accent-fg:    17  17  20;
-  --ring:        250 250 250;
+  --text:        245 245 244;
+  --text-2:      201 201 199;
+  --muted:       152 152 150;
+  --accent:      245 245 244;
+  --accent-fg:    20  20  22;
+  --ring:        245 245 244;
 
   --ok:     134 239 172;
-  --ok-bg:   20  45  32;
+  --ok-bg:   19  40  29;
   --warn:   253 224  71;
-  --warn-bg: 51  40   8;
+  --warn-bg: 45  36  10;
   --bad:    252 165 165;
-  --bad-bg:  60  22  22;
+  --bad-bg:  53  22  22;
   --info:   147 197 253;
-  --info-bg: 23  37  64;
+  --info-bg: 22  33  55;
 
-  /* The same two hues re-stepped for the dark surface (#18181b), validated as
-     a set: worst adjacent CVD dE 26.8. Not an automatic flip of the light
-     values - the steps were chosen for the dark band. */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 2px 4px 0 rgb(0 0 0 / 0.5), 0 24px 48px -12px rgb(0 0 0 / 0.6);
+
   --viz-1:        #3987e5;
   --viz-2:        #d95926;
   --viz-good:     #0ca30c;
@@ -82,16 +84,20 @@
 
 * { border-color: rgb(var(--border)); }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
-  background: rgb(var(--bg));
+  background:
+    radial-gradient(1200px 500px at 80% -10%, rgb(var(--text) / 0.03), transparent 60%),
+    rgb(var(--bg));
   color: rgb(var(--text));
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-::selection { background: rgb(var(--text) / 0.15); }
+::selection { background: rgb(var(--text) / 0.14); }
 
-/* Slim scrollbars, so dense tables do not lose width to chrome. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -101,59 +107,71 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
 @layer components {
   /* ------------------------------------------------------------- surfaces */
   .card {
-    @apply rounded-lg border bg-[rgb(var(--surface))] border-[rgb(var(--border))];
+    @apply rounded-[10px] border bg-[rgb(var(--surface))] border-[rgb(var(--border))];
+    box-shadow: var(--shadow-sm);
   }
   .card-2 {
-    @apply rounded-lg border bg-[rgb(var(--surface-2))] border-[rgb(var(--border))];
+    @apply rounded-[10px] border bg-[rgb(var(--surface-2))] border-[rgb(var(--border))];
+  }
+  .card-hover {
+    @apply transition-all duration-150;
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+    border-color: rgb(var(--border-hard));
   }
 
   /* -------------------------------------------------------------- buttons */
-  /* Compact by default: 28px tall, which keeps toolbars tight and stops a
-     row of actions from dominating the content it acts on. */
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap
            rounded-md px-2.5 h-7 text-[13px] font-medium leading-none
-           transition-colors duration-100
+           transition-all duration-100 select-none
            focus-visible:outline-none focus-visible:ring-2
            focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-1
            focus-visible:ring-offset-[rgb(var(--bg))]
-           disabled:opacity-40 disabled:cursor-not-allowed;
+           active:scale-[0.97]
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-primary {
-    @apply btn bg-[rgb(var(--accent))] text-[rgb(var(--accent-fg))]
-           hover:opacity-85;
+    @apply btn bg-[rgb(var(--accent))] text-[rgb(var(--accent-fg))] hover:opacity-85;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgb(255 255 255 / 0.08);
   }
   .btn-ghost {
-    @apply btn border border-[rgb(var(--border-hard))] bg-transparent
+    @apply btn border border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
            text-[rgb(var(--text))] hover:bg-[rgb(var(--surface-3))];
+    box-shadow: var(--shadow-sm);
   }
   .btn-quiet {
     @apply btn bg-transparent text-[rgb(var(--text-2))]
            hover:bg-[rgb(var(--surface-3))] hover:text-[rgb(var(--text))];
   }
   .btn-danger {
-    @apply btn border border-[rgb(var(--bad))] bg-transparent
-           text-[rgb(var(--bad))] hover:bg-[rgb(var(--bad-bg))];
+    @apply btn border bg-transparent text-[rgb(var(--bad))] hover:bg-[rgb(var(--bad-bg))];
+    border-color: rgb(var(--bad) / 0.5);
   }
-  /* Icon-only, square. */
   .btn-icon { @apply btn w-7 px-0; }
-  /* Occasional larger call to action. */
-  .btn-lg   { @apply h-9 px-4 text-sm; }
+  .btn-lg   { @apply h-9 px-4 text-sm rounded-lg; }
 
   /* --------------------------------------------------------------- inputs */
   .input {
     @apply w-full rounded-md border border-[rgb(var(--border-hard))]
            bg-[rgb(var(--surface))] px-2.5 h-8 text-[13px]
            text-[rgb(var(--text))] placeholder:text-[rgb(var(--muted))]
-           outline-none transition-shadow
+           outline-none transition-shadow duration-100
            focus:border-[rgb(var(--ring))] focus:ring-1 focus:ring-[rgb(var(--ring))]
            disabled:opacity-50;
+    box-shadow: var(--shadow-sm);
   }
   textarea.input { @apply h-auto py-2 leading-relaxed; }
-  select.input   { @apply pr-8; }
+  select.input   { @apply pr-7 cursor-pointer; }
   .label {
     @apply mb-1 block text-[11px] font-medium uppercase tracking-wide
            text-[rgb(var(--muted))];
@@ -164,27 +182,56 @@ body {
   .table { @apply w-full border-collapse text-[13px]; }
   .th {
     @apply sticky top-0 z-10 bg-[rgb(var(--surface-2))] px-3 py-2 text-left
-           text-[11px] font-semibold uppercase tracking-wide
+           text-[10px] font-semibold uppercase tracking-[0.08em]
            text-[rgb(var(--muted))] border-b border-[rgb(var(--border))];
   }
   .td {
-    @apply px-3 py-1.5 border-b border-[rgb(var(--border))]
+    @apply px-3 py-[7px] border-b border-[rgb(var(--border))]
            text-[rgb(var(--text-2))] align-middle;
   }
-  .row { @apply transition-colors hover:bg-[rgb(var(--surface-2))]; }
+  tbody tr:last-child .td { @apply border-b-0; }
+  .row { @apply transition-colors duration-75 hover:bg-[rgb(var(--surface-2))]; }
   .num { @apply tabular-nums text-right; }
 
-  /* --------------------------------------------------------------- badges */
+  /* ------------------------------------------------- badges: dot + tint --*/
   .badge {
-    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[11px]
-           font-medium leading-none;
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-[3px]
+           text-[11px] font-medium leading-none whitespace-nowrap;
+  }
+  .badge::before {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full shrink-0;
+    background: currentColor;
   }
   .badge-ok   { @apply badge text-[rgb(var(--ok))]   bg-[rgb(var(--ok-bg))]; }
   .badge-warn { @apply badge text-[rgb(var(--warn))] bg-[rgb(var(--warn-bg))]; }
   .badge-bad  { @apply badge text-[rgb(var(--bad))]  bg-[rgb(var(--bad-bg))]; }
   .badge-info { @apply badge text-[rgb(var(--info))] bg-[rgb(var(--info-bg))]; }
-  .badge-mute {
-    @apply badge text-[rgb(var(--muted))] bg-[rgb(var(--surface-3))];
+  .badge-mute { @apply badge text-[rgb(var(--muted))] bg-[rgb(var(--surface-3))]; }
+
+  /* --------------------------------------------------------------- avatar */
+  .avatar {
+    @apply inline-flex h-6 w-6 shrink-0 select-none items-center justify-center
+           rounded-full text-[10px] font-semibold uppercase
+           bg-[rgb(var(--surface-3))] text-[rgb(var(--text-2))]
+           ring-1 ring-[rgb(var(--border))];
+  }
+  .avatar-lg { @apply h-8 w-8 text-[12px]; }
+
+  /* ------------------------------------------------------------- sidebar */
+  .nav-section {
+    @apply px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.1em]
+           text-[rgb(var(--muted))];
+  }
+  .nav-item {
+    @apply relative flex items-center gap-2.5 rounded-md px-2.5 py-[6px]
+           text-[13px] text-[rgb(var(--text-2))] transition-colors duration-75
+           hover:bg-[rgb(var(--surface-3))] hover:text-[rgb(var(--text))];
+  }
+  .nav-item-active {
+    @apply bg-[rgb(var(--accent))] font-medium text-[rgb(var(--accent-fg))]
+           hover:bg-[rgb(var(--accent))] hover:text-[rgb(var(--accent-fg))];
+    box-shadow: var(--shadow-sm);
   }
 
   /* ---------------------------------------------------------------- misc */
@@ -195,13 +242,19 @@ body {
   }
   .divider { @apply border-t border-[rgb(var(--border))]; }
   .link {
-    @apply underline underline-offset-2 decoration-[rgb(var(--border-hard))]
-           hover:decoration-[rgb(var(--text))];
+    @apply rounded-sm underline underline-offset-2
+           decoration-[rgb(var(--border-hard))] transition-colors
+           hover:decoration-[rgb(var(--text))]
+           focus-visible:outline-none focus-visible:ring-1
+           focus-visible:ring-[rgb(var(--ring))];
+  }
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em]
+           text-[rgb(var(--muted))];
   }
 }
 
 @layer utilities {
-  /* Skeleton shimmer for loading rows. */
   .shimmer {
     background: linear-gradient(
       90deg,
@@ -215,5 +268,10 @@ body {
   @keyframes shimmer {
     0%   { background-position: 100% 50%; }
     100% { background-position: 0 50%; }
+  }
+  .fade-in { animation: fadeIn 0.25s ease both; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: none; }
   }
 }

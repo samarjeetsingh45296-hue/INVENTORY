@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, EmptyState } from '@/components/ui';
+import { Avatar, PageHeader, StatusBadge, ErrorNote, EmptyState } from '@/components/ui';
 
 interface Employee {
   id: string;
@@ -82,7 +82,11 @@ export default function EmployeesPage() {
                 <tr key={e.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
                   <td className="td font-mono text-xs">{e.employeeCode}</td>
                   <td className="td font-medium">
-                    <Link href={`/employees/${e.id}`} className="link text-[rgb(var(--text))]">
+                    <Link
+                      href={`/employees/${e.id}`}
+                      className="link inline-flex items-center gap-2 text-[rgb(var(--text))]"
+                    >
+                      <Avatar name={e.fullName} />
                       {e.fullName}
                     </Link>
                   </td>

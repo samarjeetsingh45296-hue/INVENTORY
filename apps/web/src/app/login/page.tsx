@@ -40,16 +40,52 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold">
-            {process.env.NEXT_PUBLIC_APP_NAME ?? 'Inventory Suite'}
-          </h1>
-          <p className="mt-1 text-sm text-[rgb(var(--muted))]">
-            Asset and inventory management
+    <main className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
+      <section className="relative hidden flex-col justify-between overflow-hidden
+                          bg-[rgb(var(--accent))] p-10 text-[rgb(var(--accent-fg))] lg:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+          }}
+        />
+        <div className="relative flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg
+                          bg-[rgb(var(--accent-fg))] text-[13px] font-bold
+                          text-[rgb(var(--accent))]">
+            IS
+          </div>
+          <span className="text-[14px] font-semibold tracking-tight">Inventory Suite</span>
+        </div>
+        <div className="relative max-w-md">
+          <h2 className="text-3xl font-semibold leading-tight tracking-tight">
+            Every asset, every holder, one record.
+          </h2>
+          <p className="mt-3 text-[13px] leading-relaxed opacity-70">
+            Laptops, CUG lines, lockers, workstations and repairs for the
+            Central Contact Center - stored permanently, with a change history
+            nobody can rewrite.
           </p>
         </div>
+        <p className="eyebrow relative !text-current opacity-50">Parul University</p>
+      </section>
+
+      <section className="grid place-items-center px-4 py-10">
+        <div className="w-full max-w-sm">
+          <div className="mb-6">
+            <div className="mb-5 grid h-10 w-10 place-items-center rounded-lg
+                            bg-[rgb(var(--accent))] text-[13px] font-bold
+                            text-[rgb(var(--accent-fg))] lg:hidden">
+              IS
+            </div>
+            <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
+            <p className="mt-1 text-[13px] text-[rgb(var(--muted))]">
+              {process.env.NEXT_PUBLIC_APP_NAME ?? 'Inventory Suite'} - asset and inventory management
+            </p>
+          </div>
 
         <form onSubmit={onSubmit} className="card space-y-4 p-6">
           {step === 'enrol' ? (
@@ -133,12 +169,13 @@ export default function LoginPage() {
               Back to sign in
             </button>
           ) : (
-            <button type="submit" className="btn-primary w-full" disabled={busy}>
+            <button type="submit" className="btn-primary btn-lg w-full" disabled={busy}>
               {busy ? 'Please wait...' : step === 'credentials' ? 'Sign in' : 'Verify'}
             </button>
           )}
         </form>
-      </div>
+        </div>
+      </section>
     </main>
   );
 }

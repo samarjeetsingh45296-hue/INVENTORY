@@ -59,7 +59,7 @@ function Kpi({
   return (
     <Link
       href={href}
-      className="card px-3 py-2.5 transition-colors hover:bg-[rgb(var(--surface-2))]"
+      className="card card-hover px-3 py-2.5"
     >
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--muted))]">
         <Icon size={12} aria-hidden />
