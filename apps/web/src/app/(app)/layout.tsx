@@ -29,7 +29,7 @@ const NAV: NavItem[] = [
   { href: '/repairs', label: 'Repairs', icon: Wrench, any: ['repair.read'] },
   { href: '/sync', label: 'Sheet Sync', icon: RefreshCw, any: ['sync.read'] },
   { href: '/backups', label: 'Backups', icon: DatabaseBackup, any: ['backup.read'] },
-  { href: '/audit', label: 'Audit Trail', icon: ScrollText, any: ['audit.read'] },
+  { href: '/audit', label: 'Change History', icon: ScrollText, any: ['audit.read'] },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

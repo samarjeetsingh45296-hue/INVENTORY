@@ -52,9 +52,9 @@ export default function AuditPage() {
   return (
     <>
       <PageHeader
-        title="Audit Trail"
+        title="Change History"
         description={
-          'Every change, with who made it, when, and from which address. This log is ' +
+          'Who changed what, when, and from which address. This log is ' +
           'append-only: it cannot be edited or deleted by anyone, including a Super Admin.'
         }
       />
