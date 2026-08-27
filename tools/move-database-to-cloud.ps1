@@ -17,6 +17,8 @@
 #
 #  The laptop database is never modified or deleted. It stays as a fallback.
 # ---------------------------------------------------------------------------
+param([string]$ConnectionString)
+
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
@@ -27,7 +29,7 @@ $local = "postgresql://postgres:postgres@localhost:5432/inventory"
 Write-Host ""
 Write-Host "Paste the CLOUD connection string (from Neon / Supabase)." -ForegroundColor Cyan
 Write-Host "It looks like: postgresql://user:password@ep-xxx.aws.neon.tech/dbname?sslmode=require"
-$cloud = Read-Host "Connection string"
+$cloud = if ($ConnectionString) { $ConnectionString } else { Read-Host "Connection string" }
 if (-not $cloud -or $cloud -notmatch '^postgres(ql)?://') {
   Write-Host "That does not look like a PostgreSQL connection string. Nothing was done." -ForegroundColor Red
   exit 1

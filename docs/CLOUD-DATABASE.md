@@ -54,3 +54,48 @@ The laptop database is never modified. It remains as a local fallback.
 Works identically - sign up at https://supabase.com, create a project, copy
 the connection string from Project Settings > Database (use the "Direct
 connection" string), and run the same tool.
+
+---
+
+# Option B - MongoDB Atlas (cloud copy of the data)
+
+The website keeps running on PostgreSQL; Atlas holds a structured cloud copy
+of every record - refresh it whenever you like. If you want the live database
+itself in the cloud, use the Neon route above instead. Both are free.
+
+## Your five minutes
+
+1. Go to https://www.mongodb.com/cloud/atlas/register and sign up
+   (Google login works).
+2. It offers to deploy a cluster - choose the **M0 Free** tier, any region,
+   and press Create.
+3. When asked to create a **database user**, set a username and password and
+   note them down.
+4. Under **Network Access**, press "Add IP Address" and choose
+   **Allow access from anywhere** (0.0.0.0/0) - simplest while the site runs
+   on a laptop whose address changes.
+5. Press **Connect > Drivers** and copy the connection string. Replace
+   `<password>` inside it with the database user's password. It looks like:
+
+       mongodb+srv://user:password@cluster0.abc12.mongodb.net/
+
+6. Double-click:
+
+       C:\Users\Asus\Desktop\INVENTORY\tools\save-to-cloud.cmd
+
+7. Paste the string. All seven collections upload and verify themselves.
+
+`save-to-cloud.cmd` accepts either kind of string - it recognises Atlas
+(`mongodb+srv://`) and Neon (`postgresql://`) automatically and runs the
+right path, so there is one tool to remember.
+
+## Keeping the cloud copy fresh
+
+After the first run the destination is remembered in `.env` (MONGODB_URI),
+so refreshing is just:
+
+    cd C:\Users\Asus\Desktop\INVENTORY\apps\api
+    pnpm export:mongo
+
+or run save-to-cloud.cmd again with the same string. Re-runs update in
+place - nothing duplicates.
