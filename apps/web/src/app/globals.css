@@ -32,10 +32,12 @@
   --info-bg:239 246 255;
 
   /* ------------------------------------------------------------ chart ink --
-     Categorical slots 1 and 2 of the reference palette, validated against this
-     app's own light surface (#ffffff) rather than the palette default: worst
-     adjacent CVD dE 24.7 against a target of 8, all six checks pass. Status
-     hues are reserved and never used as a series colour. */
+     Not currently used - no chart is rendered anywhere yet, by request.
+     Kept because the values are the expensive part: categorical slots 1 and 2
+     of the reference palette, validated against this app's own light surface
+     (#ffffff) rather than the palette default, worst adjacent CVD dE 24.7
+     against a target of 8, all six checks passing. Status hues are reserved
+     and must never be reused as a series colour. */
   --viz-1:        #2a78d6;
   --viz-2:        #eb6834;
   --viz-good:     #0ca30c;
