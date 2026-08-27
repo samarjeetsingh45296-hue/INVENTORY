@@ -93,6 +93,16 @@ list.
 
 ### 5. Run it
 
+**Day-to-day on this machine:** double-click `tools\start-inventory.cmd`.
+It checks PostgreSQL, builds the API if needed, starts both servers in their
+own minimised windows, and opens the site. The servers belong to your Windows
+session and keep running until you close those windows or run
+`tools\stop-inventory.cmd`. If the browser ever says "localhost refused to
+connect", this is the fix: the servers are not running - start them.
+
+For development with hot reload instead:
+
+
 ```bash
 pnpm dev
 ```
