@@ -19,6 +19,9 @@ import { BackupModule } from './modules/backup/backup.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { AllocationsModule } from './modules/allocations/allocations.module';
 import { EmployeesModule } from './modules/employees/employees.module';
+import { CugModule } from './modules/cug/cug.module';
+import { LockersModule } from './modules/lockers/lockers.module';
+import { RepairsModule } from './modules/repairs/repairs.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -50,6 +53,9 @@ import { HealthModule } from './modules/health/health.module';
     AssetsModule,
     AllocationsModule,
     SyncModule,
+    CugModule,
+    LockersModule,
+    RepairsModule,
     BackupModule,
     DashboardModule,
     HealthModule,

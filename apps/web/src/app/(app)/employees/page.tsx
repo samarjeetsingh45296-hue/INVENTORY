@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { PageHeader, StatusBadge, ErrorNote, EmptyState } from '@/components/ui';
@@ -80,7 +81,11 @@ export default function EmployeesPage() {
               {(query.data?.items ?? []).map((e) => (
                 <tr key={e.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
                   <td className="td font-mono text-xs">{e.employeeCode}</td>
-                  <td className="td font-medium">{e.fullName}</td>
+                  <td className="td font-medium">
+                    <Link href={`/employees/${e.id}`} className="link text-[rgb(var(--text))]">
+                      {e.fullName}
+                    </Link>
+                  </td>
                   <td className="td">{e.department?.name ?? '-'}</td>
                   <td className="td">{e.designation?.name ?? '-'}</td>
                   <td className="td">{e.branch?.name ?? '-'}</td>
