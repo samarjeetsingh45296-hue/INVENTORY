@@ -22,7 +22,8 @@
     "revoke:role": "ts-node --transpile-only scripts/revoke-role.ts",
     "import:ccc": "ts-node --transpile-only scripts/import-ccc.ts",
     "import:wingwise": "ts-node --transpile-only scripts/import-wingwise.ts",
-    "cleanup:nomis": "ts-node --transpile-only scripts/cleanup-nomis.ts"
+    "cleanup:nomis": "ts-node --transpile-only scripts/cleanup-nomis.ts",
+    "export:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
@@ -76,6 +77,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.5",
     "jest": "^29.7.0",
+    "mongodb": "^7.6.0",
     "prisma": "^5.22.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
