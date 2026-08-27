@@ -19,7 +19,10 @@ const envSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)'),
   MFA_ISSUER: z.string().default('Inventory Suite'),
-  MFA_REQUIRED_ROLES: z.string().default('SUPER_ADMIN'),
+  // Empty by default. Naming a role here forces every holder to enrol a
+  // second factor, which locks out an account that has not enrolled yet -
+  // so it is opt-in rather than a default that bites on first sign-in.
+  MFA_REQUIRED_ROLES: z.string().default(''),
   PASSWORD_MIN_LENGTH: z.coerce.number().int().min(8).default(12),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),

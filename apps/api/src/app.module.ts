@@ -22,6 +22,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { CugModule } from './modules/cug/cug.module';
 import { LockersModule } from './modules/lockers/lockers.module';
 import { RepairsModule } from './modules/repairs/repairs.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -56,6 +57,7 @@ import { HealthModule } from './modules/health/health.module';
     CugModule,
     LockersModule,
     RepairsModule,
+    WorkspacesModule,
     BackupModule,
     DashboardModule,
     HealthModule,

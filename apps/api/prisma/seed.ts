@@ -11,7 +11,7 @@ import '../scripts/load-env'; // must come first: populates process.env
 import { PrismaClient, SourceType, SyncMode, SyncSchedule } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
-import { PERMISSIONS, ROLES, permissionsForRole } from '@inventory/shared';
+import { PERMISSIONS, ROLES, RETIRED_ROLE_KEYS, permissionsForRole } from '@inventory/shared';
 
 const prisma = new PrismaClient();
 
@@ -84,6 +84,49 @@ async function seedRoles(permIds: Map<string, string>): Promise<Map<string, stri
     console.log(`  role ${def.key}: ${wanted.length} permissions (${stale.length} revoked)`);
   }
   return roleIds;
+}
+
+/**
+ * Roles from earlier builds are deactivated and stripped of every permission,
+ * not deleted: user_roles rows still point at them and the audit trail records
+ * who once held them. Anyone still holding one is moved to ADMIN, so nobody is
+ * locked out by the change.
+ */
+async function retireOldRoles(roleIds: Map<string, string>): Promise<void> {
+  const adminId = roleIds.get('ADMIN');
+  if (!adminId) return;
+
+  for (const key of RETIRED_ROLE_KEYS) {
+    const role = await prisma.role.findUnique({ where: { key } });
+    if (!role) continue;
+
+    const holders = await prisma.userRole.findMany({
+      where: { roleId: role.id, revokedAt: null },
+    });
+
+    for (const holder of holders) {
+      const alreadyAdmin = await prisma.userRole.findFirst({
+        where: { userId: holder.userId, roleId: adminId, revokedAt: null },
+      });
+      if (!alreadyAdmin) {
+        await prisma.userRole.create({ data: { userId: holder.userId, roleId: adminId } });
+      }
+      await prisma.userRole.update({
+        where: { id: holder.id },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+    await prisma.role.update({
+      where: { id: role.id },
+      data: { isActive: false, isSystem: false, description: 'Retired role, kept for history' },
+    });
+
+    if (holders.length) {
+      console.log(`  retired ${key}: ${holders.length} holder(s) moved to ADMIN`);
+    }
+  }
 }
 
 async function seedOrganisation() {
@@ -172,13 +215,13 @@ async function seedSuperAdmin(roleIds: Map<string, string>) {
       passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
       mustChangePassword: true,
       isActive: true,
-      roles: { create: { roleId: roleIds.get('SUPER_ADMIN') as string } },
+      roles: { create: { roleId: roleIds.get('ADMIN') as string } },
     },
   });
 
   console.log('');
   console.log('  ============================================================');
-  console.log(`   SUPER ADMIN CREATED: ${email}`);
+  console.log(`   ADMIN CREATED: ${email}`);
   if (generated) {
     console.log(`   TEMPORARY PASSWORD:  ${password}`);
     console.log('   This is shown once. Change it at first sign-in.');
@@ -249,6 +292,7 @@ async function main(): Promise<void> {
 
   const permIds = await seedPermissions();
   const roleIds = await seedRoles(permIds);
+  await retireOldRoles(roleIds);
   await seedOrganisation();
   await seedCategories();
   await seedSuperAdmin(roleIds);

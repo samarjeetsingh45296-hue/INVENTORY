@@ -2,7 +2,7 @@
  * Provisions a user account and assigns it a role.
  *
  *   pnpm --filter @inventory/api create:user -- \
- *     --email you@example.com --name "Your Name" --role SUPER_ADMIN
+ *     --email you@example.com --name "Your Name" --role ADMIN
  *
  * The account is created with a random password nobody knows - not even the
  * person running this - and flagged mustChangePassword. The real credential is
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const roleKey = (arg('role') ?? 'EMPLOYEE').toUpperCase() as RoleKey;
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    console.error('Usage: create:user -- --email you@example.com --name "Your Name" --role SUPER_ADMIN');
+    console.error('Usage: create:user -- --email you@example.com --name "Your Name" --role ADMIN');
     process.exit(1);
   }
 

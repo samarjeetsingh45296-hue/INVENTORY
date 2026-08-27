@@ -8,6 +8,7 @@ import {
   SourceTable,
   SourceRow,
   normaliseHeader,
+  dedupeHeaders,
   isBlankRow,
   isRepeatedHeader,
 } from './source-adapter';
@@ -38,10 +39,12 @@ export class FileAdapter implements SourceAdapter {
         : await this.readWorkbook(filePath, params.sheetName ?? null);
 
     const headerIdx = Math.max(0, headerRow - 1);
-    const headers = (grid[headerIdx] ?? []).map((h, i) => {
-      const clean = normaliseHeader(String(h ?? ''));
-      return clean || `Column ${i + 1}`;
-    });
+    const headers = dedupeHeaders(
+      (grid[headerIdx] ?? []).map((h, i) => {
+        const clean = normaliseHeader(String(h ?? ''));
+        return clean || `Column ${i + 1}`;
+      }),
+    );
 
     if (headers.length === 0) {
       throw new BadRequestException(

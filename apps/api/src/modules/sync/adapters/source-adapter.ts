@@ -40,6 +40,23 @@ export function normaliseHeader(header: string): string {
     .trim();
 }
 
+/**
+ * Makes header names unique.
+ *
+ * Real sheets repeat a header - the Wing Wise workbook has "Chair" twice, one
+ * for presence and one for the type. Rows are keyed by header name, so without
+ * this the first column is silently overwritten by the second and its data
+ * disappears with no error. Repeats become "Chair (2)", "Chair (3)" and so on.
+ */
+export function dedupeHeaders(headers: string[]): string[] {
+  const seen = new Map<string, number>();
+  return headers.map((h) => {
+    const n = (seen.get(h) ?? 0) + 1;
+    seen.set(h, n);
+    return n === 1 ? h : `${h} (${n})`;
+  });
+}
+
 /** Blank rows are extremely common at the bottom of a sheet - skip silently. */
 export function isBlankRow(raw: Record<string, string>): boolean {
   return Object.values(raw).every((v) => !v || v.trim() === '');

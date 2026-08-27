@@ -20,7 +20,8 @@
     "set:password": "ts-node --transpile-only scripts/set-password.ts",
     "create:user": "ts-node --transpile-only scripts/create-user.ts",
     "revoke:role": "ts-node --transpile-only scripts/revoke-role.ts",
-    "import:ccc": "ts-node --transpile-only scripts/import-ccc.ts"
+    "import:ccc": "ts-node --transpile-only scripts/import-ccc.ts",
+    "import:wingwise": "ts-node --transpile-only scripts/import-wingwise.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

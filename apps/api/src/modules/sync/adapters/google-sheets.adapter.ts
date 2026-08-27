@@ -7,6 +7,7 @@ import {
   SourceTable,
   SourceRow,
   normaliseHeader,
+  dedupeHeaders,
   isBlankRow,
   isRepeatedHeader,
 } from './source-adapter';
@@ -104,11 +105,13 @@ export class GoogleSheetsAdapter implements SourceAdapter {
 
     const headerIdx = Math.max(0, headerRow - 1);
     const rawHeaders = values[headerIdx] ?? [];
-    const headers = rawHeaders.map((h, i) => {
-      const clean = normaliseHeader(String(h ?? ''));
-      // Unlabelled columns still need a stable key.
-      return clean || `Column ${i + 1}`;
-    });
+    const headers = dedupeHeaders(
+      rawHeaders.map((h, i) => {
+        const clean = normaliseHeader(String(h ?? ''));
+        // Unlabelled columns still need a stable key.
+        return clean || `Column ${i + 1}`;
+      }),
+    );
 
     const rows: SourceRow[] = [];
     for (let i = headerIdx + 1; i < values.length; i++) {
