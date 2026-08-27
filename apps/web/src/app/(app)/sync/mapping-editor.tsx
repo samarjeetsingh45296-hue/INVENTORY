@@ -153,7 +153,7 @@ export function MappingEditor({
 
             <div className="max-h-[50vh] overflow-y-auto rounded-md border
                             border-[rgb(var(--border))]">
-              <table className="w-full">
+              <table className="table">
                 <thead className="sticky top-0 bg-[rgb(var(--surface))]">
                   <tr>
                     <th className="th">Sheet column</th>

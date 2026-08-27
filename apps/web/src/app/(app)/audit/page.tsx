@@ -84,7 +84,7 @@ export default function AuditPage() {
         <EmptyState message="No matching entries" />
       ) : (
         <div className="card overflow-x-auto">
-          <table className="w-full min-w-[56rem]">
+          <table className="table min-w-[56rem]">
             <thead>
               <tr>
                 <th className="th">When</th>
@@ -123,7 +123,7 @@ export default function AuditPage() {
                       <td className="td bg-black/[0.02] dark:bg-white/[0.03]" colSpan={6}>
                         {row.summary && <p className="mb-2 text-sm">{row.summary}</p>}
                         {row.changedFields.length > 0 ? (
-                          <table className="w-full max-w-2xl">
+                          <table className="table max-w-2xl">
                             <thead>
                               <tr>
                                 <th className="th">Field</th>

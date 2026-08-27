@@ -65,7 +65,7 @@ export default function EmployeesPage() {
         />
       ) : (
         <div className="card overflow-x-auto">
-          <table className="w-full min-w-[46rem]">
+          <table className="table min-w-[46rem]">
             <thead>
               <tr>
                 <th className="th">Code</th>
