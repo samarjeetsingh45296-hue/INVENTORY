@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Boxes, Users, RefreshCw, ScrollText, LayoutDashboard,
-  DatabaseBackup, LogOut, Menu, X, Smartphone, KeyRound, Wrench, Armchair,
+  DatabaseBackup, LogOut, Menu, X, Smartphone, KeyRound, Wrench, Armchair, Ticket,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { href: '/employees', label: 'Employees', icon: Users, any: ['employee.read'] },
   { href: '/workstations', label: 'Workstations', icon: Armchair, any: ['workspace.read'] },
   { href: '/cug', label: 'CUG lines', icon: Smartphone, any: ['cug.read'] },
+  { href: '/vouchers', label: 'PVR cards', icon: Ticket, any: ['asset.read'] },
   { href: '/lockers', label: 'Lockers', icon: KeyRound, any: ['locker.read'] },
   { href: '/repairs', label: 'Repairs', icon: Wrench, any: ['repair.read'] },
   { href: '/sync', label: 'Sheet Sync', icon: RefreshCw, any: ['sync.read'] },

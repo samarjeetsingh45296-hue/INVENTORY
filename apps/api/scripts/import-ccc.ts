@@ -18,7 +18,7 @@ import {
   PrismaClient, AssetCondition, AssetStatus, AllocationStatus,
   AllocationHolderType, AssetEventType, AuditAction, CugStatus,
   LockerStatus, RepairStatus, SourceType, SyncMode, SyncRowStatus,
-  SyncStatus, EmploymentStatus,
+  SyncStatus, EmploymentStatus, VoucherStatus,
 } from '@prisma/client';
 import { FileAdapter } from '../src/modules/sync/adapters/file.adapter';
 
@@ -708,6 +708,77 @@ async function importHeadphones(c: Ctx, file: string): Promise<void> {
   }
 }
 
+// ------------------------------------------------------- PVR movie cards --
+/**
+ * One row is one card.
+ *
+ * The Voucher No repeats: a book of ten cards carries the same printed number,
+ * and the sheet lists them as ten lines. So the row is the card, and identity
+ * is the source row rather than the number. A blank "ISSUED TO" means the card
+ * is still in the drawer, which is most of them.
+ */
+async function importVouchers(c: Ctx, file: string): Promise<void> {
+  const table = await adapter.read({
+    filePath: file, sheetName: 'PVR MOVIE VOUCHERS', headerRow: 2,
+  });
+
+  for (const row of table.rows) {
+    const r = row.raw;
+    try {
+      const voucherNo = S(r['Voucher No']);
+      if (!voucherNo) { bump(c, 'voucherBlank'); continue; }
+
+      const importKey = `ccc:PVR:${row.rowNumber}`;
+      if (!DRY) {
+        const already = await prisma.voucher.findFirst({
+          where: { sourceRef: importKey, deletedAt: undefined },
+        });
+        if (already) { bump(c, 'vouchersUnchanged'); continue; }
+      } else {
+        bump(c, 'vouchersCreated');
+        continue;
+      }
+
+      const issuedToName = S(r['ISSUED TO']);
+      const issued = Boolean(issuedToName);
+
+      // Link to the employee where the name matches someone already imported;
+      // the name is kept either way, because the sheet records people who may
+      // not be on file.
+      const employeeId = issued ? c.employees.get(normName(issuedToName)) ?? null : null;
+
+      await prisma.voucher.create({
+        data: {
+          branchId: c.branchId,
+          kind: 'PVR_MOVIE',
+          voucherNo,
+          serialNo: Number(digits(r['Sr.No'])) || null,
+          receivedAt: toDate(r['Date Recieved']),
+          status: issued ? VoucherStatus.ISSUED : VoucherStatus.AVAILABLE,
+          issuedToEmployeeId: employeeId && employeeId !== 'dry-run' ? employeeId : null,
+          issuedToName: issuedToName || null,
+          issuedByName: S(r['ISSUED BY']) || null,
+          issuedAt: toDate(r['Issued Date']),
+          purpose: S(r['Purpose']) || null,
+          sourceType: SourceType.EXCEL_UPLOAD,
+          sourceRef: importKey,
+          createdById: c.actorId,
+        },
+      });
+
+      bump(c, 'vouchersCreated');
+      if (issued && !employeeId) bump(c, 'voucherHolderUnmatched');
+      stage(c, 'PVR', row.rowNumber, r, SyncRowStatus.IMPORTED, 'Voucher', null,
+        issued && !employeeId ? [`"${issuedToName}" is not an employee on file`] : []);
+      bump(c, 'rowsImported');
+    } catch (err) {
+      stage(c, 'PVR', row.rowNumber, r, SyncRowStatus.INVALID, 'Voucher', null,
+        [(err as Error).message]);
+      bump(c, 'rowsInvalid');
+    }
+  }
+}
+
 // -------------------------------------------------------------------- main --
 async function main(): Promise<void> {
   const file = arg('file');
@@ -762,6 +833,7 @@ async function main(): Promise<void> {
     for (const [label, fn] of [
       ['Core team', importCoreTeam], ['CUG', importCug], ['Locker Key', importLockers],
       ['Stock', importStock], ['Repair', importRepairs], ['Headfhone assign', importHeadphones],
+      ['PVR MOVIE VOUCHERS', importVouchers],
     ] as Array<[string, (c: Ctx, f: string) => Promise<void>]>) {
       process.stdout.write(`  ${label} ... `);
       try {

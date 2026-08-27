@@ -318,6 +318,15 @@ enum NotificationType {
   SYSTEM
 }
 
+enum VoucherStatus {
+  AVAILABLE
+  ISSUED
+  REDEEMED
+  EXPIRED
+  VOID
+  LOST
+}
+
 enum LocationKind {
   CAMPUS
   BUILDING
@@ -390,6 +399,7 @@ model Branch {
   lockers        Locker[]
   cugConnections CugConnection[]
   stockItems     StockItem[]
+  vouchers       Voucher[]
   userScopes     UserScope[]
 
   isActive       Boolean  @default(true)
@@ -549,6 +559,7 @@ model Employee {
   repairsReported        RepairTicket[]  @relation("RepairReporter")
   assetRequests          AssetRequest[]
   damageReports          DamageReport[]
+  vouchers               Voucher[]
 
   /// Provenance: which workbook, tab and row this employee first arrived from.
   sourceType       SourceType @default(MANUAL)
@@ -1866,4 +1877,59 @@ model BackupRun {
   @@index([type, startedAt])
   @@index([status])
   @@map("backup_runs")
+}
+
+// ---------------------------------------------------------------------------
+//  VOUCHERS (PVR movie cards and anything like them)
+//
+//  One row is one card. `voucherNo` is the number printed on the book and is
+//  deliberately NOT unique: a book of ten cards carries the same number on all
+//  ten, and the source sheet records them as ten separate lines. Identity is
+//  the book number plus the position within it.
+// ---------------------------------------------------------------------------
+
+model Voucher {
+  id             String   @id @default(uuid()) @db.Uuid
+  branchId       String   @db.Uuid
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  /// PVR_MOVIE today; the column exists so a different reward card does not
+  /// need a new table.
+  kind           String   @default("PVR_MOVIE")
+  /// Printed on the book. Repeats across every card in that book.
+  voucherNo      String
+  /// Position within the batch, from the sheet's Sr. No.
+  serialNo       Int?
+  faceValue      Decimal? @db.Decimal(10, 2)
+
+  receivedAt     DateTime? @db.Date
+  status         VoucherStatus @default(AVAILABLE)
+
+  issuedToEmployeeId String? @db.Uuid
+  issuedTo       Employee? @relation(fields: [issuedToEmployeeId], references: [id], onDelete: Restrict)
+  /// Kept alongside the link because the sheet records a name that may not
+  /// match any employee on file.
+  issuedToName   String?
+  issuedByName   String?
+  issuedAt       DateTime? @db.Date
+  /// "RnR - June" and the like.
+  purpose        String?
+  notes          String?
+
+  sourceType     SourceType @default(MANUAL)
+  sourceRef      String?
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  deletedAt      DateTime? @db.Timestamptz(3)
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  deletedById    String?  @db.Uuid
+
+  @@index([voucherNo])
+  @@index([status])
+  @@index([issuedToEmployeeId])
+  @@index([deletedAt])
+  @@map("vouchers")
 }

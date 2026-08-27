@@ -20,7 +20,7 @@ DECLARE
     'assets','asset_allocations','repair_tickets','damage_reports',
     'workstations','workstation_allocations','lockers','locker_allocations',
     'cug_connections','cug_allocations','stock_items','asset_requests',
-    'physical_audits','sync_sources','sync_runs','backup_runs'
+    'physical_audits','sync_sources','sync_runs','backup_runs','vouchers'
   ];
   cols text[] := ARRAY['createdById','updatedById','deletedById'];
 BEGIN
