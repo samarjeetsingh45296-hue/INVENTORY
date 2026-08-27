@@ -235,3 +235,5 @@ permissions is refused, not opened.
 - [docs/STATUS.md](docs/STATUS.md) - what is built and what is not
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - how the pieces fit together
 - [docs/RUNBOOK.md](docs/RUNBOOK.md) - backups, restore, incident procedures
+- [docs/CLOUD-DATABASE.md](docs/CLOUD-DATABASE.md) - move the data to a free cloud PostgreSQL in five minutes
+- [docs/GOOGLE-SYNC-SETUP.md](docs/GOOGLE-SYNC-SETUP.md) - connect Google Sheets live sync
