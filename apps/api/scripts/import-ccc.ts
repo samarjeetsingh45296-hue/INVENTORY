@@ -121,6 +121,16 @@ async function upsertEmployee(
   if (existing) {
     c.employees.set(key, existing.id);
     c.employees.set(normName(name), existing.id);
+
+    // Fill gaps, never overwrite: a person created by a tab without a Process
+    // column (Core team) must still pick the value up when a later tab (CUG)
+    // carries it. Anything a human or an earlier tab already set is kept.
+    const gaps: Record<string, string> = {};
+    if (!existing.process && extra.process) gaps.process = extra.process;
+    if (Object.keys(gaps).length && !DRY) {
+      await prisma.employee.update({ where: { id: existing.id }, data: gaps });
+      bump(c, 'employeesBackfilled');
+    }
     return existing.id;
   }
 
