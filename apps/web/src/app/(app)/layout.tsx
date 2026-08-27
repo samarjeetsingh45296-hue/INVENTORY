@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   Boxes, Users, RefreshCw, ScrollText, LayoutDashboard,
   DatabaseBackup, LogOut, Menu, X, Smartphone, KeyRound, Wrench,
-  Armchair, Ticket,
+  Armchair, Ticket, UserCog,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -52,6 +52,7 @@ const NAV: NavGroup[] = [
   {
     title: 'Administration',
     items: [
+      { href: '/users', label: 'Users', icon: UserCog, any: ['user.read'] },
       { href: '/sync', label: 'Sheet Sync', icon: RefreshCw, any: ['sync.read'] },
       { href: '/backups', label: 'Backups', icon: DatabaseBackup, any: ['backup.read'] },
       { href: '/audit', label: 'Change History', icon: ScrollText, any: ['audit.read'] },
