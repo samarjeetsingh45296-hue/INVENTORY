@@ -4,11 +4,15 @@ import { AssetStatus } from '@prisma/client';
 import { CurrentUser, RequireAny, RequirePermissions } from '../../common/decorators';
 import { PRISMA, ExtendedPrisma } from '../../common/prisma/prisma.service';
 import type { Principal } from '@inventory/shared';
+import { KpiService } from './kpi.service';
 
 @ApiTags('dashboard')
 @Controller('dashboard')
 class DashboardController {
-  constructor(@Inject(PRISMA) private readonly prisma: ExtendedPrisma) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: ExtendedPrisma,
+    private readonly kpi: KpiService,
+  ) {}
 
   /**
    * Headline numbers. Everything here counts live database rows: the figures
@@ -84,6 +88,13 @@ class DashboardController {
     };
   }
 
+  /** Every figure the dashboard renders, in one round trip. */
+  @RequirePermissions('dashboard.read')
+  @Get('kpis')
+  kpis() {
+    return this.kpi.all();
+  }
+
   /** Recent activity feed, drawn straight from the audit trail. */
   @RequirePermissions('dashboard.read')
   @Get('activity')
@@ -100,5 +111,5 @@ class DashboardController {
   }
 }
 
-@Module({ controllers: [DashboardController] })
+@Module({ controllers: [DashboardController], providers: [KpiService] })
 export class DashboardModule {}

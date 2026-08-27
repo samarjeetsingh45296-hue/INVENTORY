@@ -30,6 +30,18 @@
   --bad-bg: 254 242 242;
   --info:    29  78 216;
   --info-bg:239 246 255;
+
+  /* ------------------------------------------------------------ chart ink --
+     Categorical slots 1 and 2 of the reference palette, validated against this
+     app's own light surface (#ffffff) rather than the palette default: worst
+     adjacent CVD dE 24.7 against a target of 8, all six checks pass. Status
+     hues are reserved and never used as a series colour. */
+  --viz-1:        #2a78d6;
+  --viz-2:        #eb6834;
+  --viz-good:     #0ca30c;
+  --viz-warn:     #fab219;
+  --viz-critical: #d03b3b;
+  --viz-muted:    #a1a1aa;
 }
 
 .dark {
@@ -54,6 +66,16 @@
   --bad-bg:  60  22  22;
   --info:   147 197 253;
   --info-bg: 23  37  64;
+
+  /* The same two hues re-stepped for the dark surface (#18181b), validated as
+     a set: worst adjacent CVD dE 26.8. Not an automatic flip of the light
+     values - the steps were chosen for the dark band. */
+  --viz-1:        #3987e5;
+  --viz-2:        #d95926;
+  --viz-good:     #0ca30c;
+  --viz-warn:     #fab219;
+  --viz-critical: #d03b3b;
+  --viz-muted:    #71717a;
 }
 
 * { border-color: rgb(var(--border)); }
