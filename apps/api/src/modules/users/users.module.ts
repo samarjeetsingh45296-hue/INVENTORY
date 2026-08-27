@@ -29,7 +29,6 @@ class UsersController {
   async list(@Query('search') search?: string) {
     const users = await this.prisma.user.findMany({
       where: {
-        deletedAt: undefined,
         ...(search
           ? {
               OR: [
