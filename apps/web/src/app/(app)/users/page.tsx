@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { UserPlus } from 'lucide-react';
+import { Eye, Pencil, UserCog, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Avatar, PageHeader, ErrorNote, TableSkeleton } from '@/components/ui';
@@ -41,10 +41,31 @@ export default function UsersPage() {
     },
   });
 
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['users'] });
+
   const setActive = useMutation({
     mutationFn: (vars: { id: string; isActive: boolean }) =>
       api(`/users/${vars.id}/active`, { method: 'POST', body: { isActive: vars.isActive } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+    onSuccess: refresh,
+  });
+
+  const setRole = useMutation({
+    mutationFn: (vars: { id: string; roleKey: string }) =>
+      api(`/users/${vars.id}/role`, { method: 'POST', body: { roleKey: vars.roleKey } }),
+    onSuccess: refresh,
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: (vars: { id: string; password: string }) =>
+      api<{ message: string }>(`/users/${vars.id}/password`, {
+        method: 'POST', body: { password: vars.password },
+      }),
+    onSuccess: (res) => { setNotice(res.message); refresh(); },
+  });
+
+  const removeUser = useMutation({
+    mutationFn: (id: string) => api(`/users/${id}/delete`, { method: 'POST' }),
+    onSuccess: refresh,
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -120,69 +141,135 @@ export default function UsersPage() {
         </section>
       )}
 
-      {setActive.isError && <div className="mb-3"><ErrorNote error={setActive.error} /></div>}
+      {(setActive.isError || setRole.isError || resetPassword.isError || removeUser.isError) && (
+        <div className="mb-3">
+          <ErrorNote
+            error={setActive.error ?? setRole.error ?? resetPassword.error ?? removeUser.error}
+          />
+        </div>
+      )}
 
       <div className="card overflow-x-auto">
-        <table className="table" style={{ minWidth: '44rem' }}>
+        <table className="table" style={{ minWidth: '58rem' }}>
           <thead>
             <tr>
-              <th className="th">Name</th>
+              <th className="th">User</th>
               <th className="th">Email</th>
               <th className="th">Role</th>
-              <th className="th">Status</th>
-              <th className="th">Last sign-in</th>
-              {can('user.update') && <th className="th text-right">Action</th>}
+              <th className="th">Access</th>
+              <th className="th">Last login</th>
+              {can('user.update') && <th className="th text-right">Actions</th>}
             </tr>
           </thead>
           {q.isLoading ? <TableSkeleton rows={4} cols={6} /> : (
             <tbody>
-              {(q.data ?? []).map((u) => (
-                <tr key={u.id} className={u.isActive ? 'row' : 'row opacity-50'}>
-                  <td className="td font-medium text-[rgb(var(--text))]">
-                    <span className="inline-flex items-center gap-2">
-                      <Avatar name={u.displayName} />
-                      {u.displayName}
-                      {u.id === me?.userId && <span className="badge-info">you</span>}
-                    </span>
-                  </td>
-                  <td className="td">{u.email}</td>
-                  <td className="td">
-                    {u.roles.map((r) => (
-                      <span key={r} className={r === 'ADMIN' ? 'badge-warn' : 'badge-mute'}>
-                        {r.toLowerCase()}
+              {(q.data ?? []).map((u) => {
+                const isAdmin = u.roles.includes('ADMIN');
+                const self = u.id === me?.userId;
+                const other = isAdmin ? 'VIEWER' : 'ADMIN';
+                return (
+                  <tr key={u.id} className={u.isActive ? 'row' : 'row opacity-50'}>
+                    <td className="td font-medium text-[rgb(var(--text))]">
+                      <span className="inline-flex items-center gap-2">
+                        <Avatar name={u.displayName} />
+                        {u.displayName}
+                        {self && <span className="badge-info">you</span>}
+                        {!u.isActive && <span className="badge-bad">disabled</span>}
                       </span>
-                    ))}
-                  </td>
-                  <td className="td">
-                    <span className={u.isActive ? 'badge-ok' : 'badge-bad'}>
-                      {u.isActive ? 'active' : 'disabled'}
-                    </span>
-                  </td>
-                  <td className="td whitespace-nowrap">
-                    {u.lastLoginAt ? format(new Date(u.lastLoginAt), 'd MMM yy, HH:mm') : 'never'}
-                  </td>
-                  {can('user.update') && (
-                    <td className="td text-right">
-                      {u.id !== me?.userId && (
-                        <button
-                          className={u.isActive ? 'btn-danger' : 'btn-ghost'}
-                          disabled={setActive.isPending}
-                          onClick={() => {
-                            const message = u.isActive
-                              ? `Deactivate ${u.displayName}? They are signed out immediately and cannot sign in until re-enabled. Nothing is deleted.`
-                              : `Re-enable ${u.displayName}?`;
-                            if (window.confirm(message)) {
-                              setActive.mutate({ id: u.id, isActive: !u.isActive });
-                            }
-                          }}
-                        >
-                          {u.isActive ? 'Deactivate' : 'Re-enable'}
-                        </button>
-                      )}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="td">{u.email}</td>
+                    <td className="td">
+                      <span className={isAdmin ? 'badge-warn' : 'badge-ok'}>
+                        {isAdmin ? 'Admin' : 'Viewer'}
+                      </span>
+                    </td>
+                    <td className="td">
+                      {/* What the role allows, at a glance: view / edit / manage users. */}
+                      <span className="inline-flex gap-1">
+                        <span className="btn-icon btn-ghost pointer-events-none" title="Can view every screen">
+                          <Eye size={13} />
+                        </span>
+                        <span
+                          className="btn-icon btn-ghost pointer-events-none"
+                          title={isAdmin ? 'Can change anything' : 'Cannot change anything'}
+                          style={isAdmin ? undefined : { opacity: 0.25 }}
+                        >
+                          <Pencil size={13} />
+                        </span>
+                        <span
+                          className="btn-icon btn-ghost pointer-events-none"
+                          title={isAdmin ? 'Can manage users' : 'Cannot manage users'}
+                          style={isAdmin ? undefined : { opacity: 0.25 }}
+                        >
+                          <UserCog size={13} />
+                        </span>
+                      </span>
+                    </td>
+                    <td className="td whitespace-nowrap">
+                      {u.lastLoginAt ? format(new Date(u.lastLoginAt), 'd MMM, hh:mm a') : 'never'}
+                    </td>
+                    {can('user.update') && (
+                      <td className="td">
+                        <div className="flex justify-end gap-1.5">
+                          {!self && (
+                            <button
+                              className="btn-ghost"
+                              disabled={setRole.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Make ${u.displayName} ${other === 'ADMIN' ? 'an Admin (full control)' : 'a Viewer (read-only)'}?`)) {
+                                  setRole.mutate({ id: u.id, roleKey: other });
+                                }
+                              }}
+                            >
+                              Role
+                            </button>
+                          )}
+                          <button
+                            className="btn-ghost"
+                            disabled={resetPassword.isPending}
+                            onClick={() => {
+                              const pw = window.prompt(`New password for ${u.displayName} (min 6). They are signed out everywhere.`);
+                              if (pw && pw.length >= 6) resetPassword.mutate({ id: u.id, password: pw });
+                              else if (pw !== null) window.alert('At least 6 characters.');
+                            }}
+                          >
+                            Password
+                          </button>
+                          {!self && (
+                            <button
+                              className="btn-ghost"
+                              disabled={setActive.isPending}
+                              onClick={() => {
+                                const message = u.isActive
+                                  ? `Disable ${u.displayName}? They are signed out immediately and cannot sign in until re-enabled.`
+                                  : `Re-enable ${u.displayName}?`;
+                                if (window.confirm(message)) {
+                                  setActive.mutate({ id: u.id, isActive: !u.isActive });
+                                }
+                              }}
+                            >
+                              {u.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
+                          {!self && can('user.delete') && (
+                            <button
+                              className="btn-danger"
+                              disabled={removeUser.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Delete ${u.displayName}? The account disappears from this list and can never sign in. Their entries in the change history are kept.`)) {
+                                  removeUser.mutate(u.id);
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           )}
         </table>

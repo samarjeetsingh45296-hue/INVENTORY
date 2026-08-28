@@ -173,6 +173,156 @@ class UsersController {
 
     return { id: after.id, isActive: after.isActive };
   }
+
+  /**
+   * Switch a user between the two roles. With exactly ADMIN and VIEWER this
+   * is a toggle, but the target role still arrives explicitly so a stale
+   * screen cannot flip someone the wrong way.
+   */
+  @RequirePermissions('role.assign')
+  @Post(':id/role')
+  async setRole(
+    @Param('id') id: string,
+    @Body() body: { roleKey: string },
+    @CurrentUser() actor: Principal,
+  ) {
+    const roleKey = (body.roleKey ?? '').toUpperCase() as RoleKey;
+    if (!ROLE_KEYS.includes(roleKey)) {
+      throw new BadRequestException(`Role must be one of: ${ROLE_KEYS.join(', ')}`);
+    }
+    if (id === actor.userId) {
+      throw new BadRequestException('You cannot change your own role.');
+    }
+
+    const target = await this.prisma.user.findFirstOrThrow({
+      where: { id },
+      include: { roles: { where: { revokedAt: null }, include: { role: true } } },
+    });
+    const current = target.roles[0]?.role.key ?? null;
+    if (current === roleKey) return { id, roles: [roleKey] };
+
+    // Demoting the last Admin would leave the site unadministered.
+    if (current === 'ADMIN') {
+      const otherAdmins = await this.prisma.userRole.count({
+        where: {
+          revokedAt: null,
+          role: { key: 'ADMIN' },
+          user: { isActive: true, deletedAt: null, id: { not: id } },
+        },
+      });
+      if (otherAdmins === 0) {
+        throw new BadRequestException('This is the last active Admin. Promote someone else first.');
+      }
+    }
+
+    const newRole = await this.prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userRole.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedById: actor.userId },
+      });
+      await tx.userRole.create({
+        data: { userId: id, roleId: newRole.id, assignedById: actor.userId },
+      });
+    });
+
+    await this.audit.record({
+      action: AuditAction.ROLE_ASSIGNED,
+      entityType: 'User',
+      entityId: id,
+      entityLabel: `${target.displayName} (${target.email})`,
+      oldValue: { role: current },
+      newValue: { role: roleKey },
+      summary: `${actor.displayName} changed ${target.displayName} from ${current ?? 'no role'} to ${roleKey}`,
+    });
+    return { id, roles: [roleKey] };
+  }
+
+  /** Admin sets a new password for someone. Their sessions end immediately. */
+  @RequirePermissions('user.reset_password')
+  @Post(':id/password')
+  async resetPassword(
+    @Param('id') id: string,
+    @Body() body: { password: string },
+    @CurrentUser() actor: Principal,
+  ) {
+    if ((body.password ?? '').length < 6) {
+      throw new BadRequestException('The password must be at least 6 characters.');
+    }
+    const target = await this.prisma.user.findFirstOrThrow({ where: { id } });
+
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash: await argon2.hash(body.password, { type: argon2.argon2id }),
+        mustChangePassword: true,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        updatedById: actor.userId,
+      },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: 'PASSWORD_RESET_BY_ADMIN' },
+    });
+
+    await this.audit.record({
+      action: AuditAction.PASSWORD_RESET,
+      entityType: 'User',
+      entityId: id,
+      entityLabel: `${target.displayName} (${target.email})`,
+      summary: `${actor.displayName} reset the password for ${target.displayName}`,
+    });
+    return { id, message: `Password changed. ${target.displayName} was signed out everywhere.` };
+  }
+
+  /**
+   * "Delete" in the UI sense: the account disappears from the list and can
+   * never sign in. The record is archived, not destroyed - the change history
+   * that names this person must keep naming them.
+   */
+  @RequirePermissions('user.delete')
+  @Post(':id/delete')
+  async remove(@Param('id') id: string, @CurrentUser() actor: Principal) {
+    if (id === actor.userId) {
+      throw new BadRequestException('You cannot delete your own account.');
+    }
+    const target = await this.prisma.user.findFirstOrThrow({
+      where: { id },
+      include: { roles: { where: { revokedAt: null }, include: { role: true } } },
+    });
+
+    if (target.roles.some((r) => r.role.key === 'ADMIN')) {
+      const otherAdmins = await this.prisma.userRole.count({
+        where: {
+          revokedAt: null,
+          role: { key: 'ADMIN' },
+          user: { isActive: true, deletedAt: null, id: { not: id } },
+        },
+      });
+      if (otherAdmins === 0) {
+        throw new BadRequestException('This is the last active Admin. Create another Admin first.');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { isActive: false, deletedAt: new Date(), deletedById: actor.userId },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: 'ACCOUNT_DELETED' },
+    });
+
+    await this.audit.record({
+      action: AuditAction.SOFT_DELETE,
+      entityType: 'User',
+      entityId: id,
+      entityLabel: `${target.displayName} (${target.email})`,
+      summary: `${actor.displayName} deleted the account of ${target.displayName} (archived; history retained)`,
+    });
+    return { id, deleted: true };
+  }
 }
 
 @Module({ controllers: [UsersController] })
