@@ -141,12 +141,14 @@ function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen:
 
 /** The full wing: top row, "Wing X" band, bottom row - desks facing. */
 function WingStack({
-  wingKey, seats, onOpen,
-}: { wingKey: string; seats: Seat[]; onOpen: (o: Opened) => void }) {
+  wingKey, seats, onOpen, grow = true,
+}: { wingKey: string; seats: Seat[]; onOpen: (o: Opened) => void; grow?: boolean }) {
   const cfg = WING[wingKey] ?? { cols: 6, topParity: 1, dir: -1 as const };
   const [top, bottom] = splitRows(seats, cfg);
   return (
-    <div className="min-w-0 flex-1 space-y-1">
+    // When a cabin shares the row, the wing keeps its natural width and the
+    // cabin grows to fill whatever is left - so nothing sits empty.
+    <div className={`min-w-0 space-y-1 ${grow ? 'flex-1' : 'flex-none'}`}>
       <SeatRow seats={top} cols={cfg.cols} onOpen={onOpen} />
       <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
                       font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
@@ -177,7 +179,7 @@ function CabinBox({
       className={`grid shrink-0 place-items-center rounded-md border border-[rgb(var(--border-hard))]
                   bg-[rgb(var(--surface))] px-2 text-center text-[12px] font-semibold
                   text-[rgb(var(--text))] shadow-sm transition hover:border-[rgb(var(--ring))]
-                  ${tall ? 'w-36 self-stretch' : 'w-28 self-stretch'}`}
+                  ${tall ? 'min-w-36 flex-1 self-stretch' : 'min-w-28 flex-1 self-stretch'}`}
     >
       {name}
     </button>
@@ -221,7 +223,8 @@ function ZoneBlock({
           {seg.cabin && (
             <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
           )}
-          <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []} onOpen={onOpen} />
+          <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []}
+                     grow={!seg.cabin && !seg.cabinRight} onOpen={onOpen} />
           {seg.cabinRight === 'Induction Space' && (
             <button
               onClick={() =>
@@ -237,7 +240,7 @@ function ZoneBlock({
                 })
               }
               title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
-              className="grid w-36 shrink-0 place-items-center self-stretch rounded-md border
+              className="grid min-w-36 flex-1 place-items-center self-stretch rounded-md border
                          border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
                          text-[12px] font-semibold text-[rgb(var(--muted))] transition
                          hover:border-[rgb(var(--ring))]"
