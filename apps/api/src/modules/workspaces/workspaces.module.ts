@@ -31,9 +31,34 @@ class WorkstationsController {
    * Every seat with its live equipment, for the building view. Seat codes
    * only - the floor plan deliberately carries no employee names.
    */
+  /** The zone name-plates on the plan are cabins with equipment of their own. */
+  private static readonly PLATES = [
+    'Zalak Dani', 'Bhagirathsinh Chauhan', 'Vaide Odedara',
+    'Yash Shah', 'Anushka Joshi', 'Hemal Patel',
+  ];
+
   @RequirePermissions('workspace.read')
   @Get('floor')
   async floor() {
+    // The Induction Space is a real place that holds equipment, so it is a
+    // workstation row like any seat - created once, on first view.
+    const ccc = await this.prisma.branch.findFirst({ where: { code: 'CCC' } })
+      ?? await this.prisma.branch.findFirst({});
+    if (ccc) {
+      const existing = await this.prisma.workstation.findFirst({
+        where: { branchId: ccc.id, seatCode: 'INDUCTION', deletedAt: undefined },
+      });
+      if (!existing) {
+        await this.prisma.workstation.create({
+          data: {
+            branchId: ccc.id, seatCode: 'INDUCTION',
+            status: WorkstationStatus.AVAILABLE,
+            notes: 'Process: Induction Space',
+          },
+        });
+      }
+    }
+
     const stations = await this.prisma.workstation.findMany({
       where: { deletedAt: undefined },
       select: {
@@ -63,7 +88,7 @@ class WorkstationsController {
       byStation.set(k.holderRefId, list);
     }
 
-    return stations.map((w) => ({
+    const seats = stations.map((w) => ({
       id: w.id,
       seatCode: w.seatCode,
       wing: w.location?.name ?? 'Unassigned',
@@ -72,6 +97,41 @@ class WorkstationsController {
       equipment: (byStation.get(w.id) ?? []).sort((a, b) =>
         a.category.name.localeCompare(b.category.name)),
     }));
+
+    // The name-plates: each is an employee whose own equipment shows when the
+    // plate is clicked.
+    const plates = [] as Array<{
+      name: string; employeeId: string | null;
+      equipment: Array<{ id: string; assetTag: string; model: string | null;
+        serialNumber: string | null; category: { name: string } }>;
+    }>;
+    for (const name of WorkstationsController.PLATES) {
+      const emp = await this.prisma.employee.findFirst({
+        where: { fullName: { equals: name, mode: 'insensitive' }, deletedAt: undefined },
+        select: {
+          id: true,
+          allocations: {
+            where: { status: AllocationStatus.ACTIVE },
+            select: {
+              asset: {
+                select: {
+                  id: true, assetTag: true, model: true, serialNumber: true,
+                  category: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      plates.push({
+        name,
+        employeeId: emp?.id ?? null,
+        equipment: (emp?.allocations ?? []).map((a) => a.asset)
+          .sort((a, b) => a.category.name.localeCompare(b.category.name)),
+      });
+    }
+
+    return { seats, plates };
   }
 
   @RequirePermissions('workspace.read')
@@ -336,6 +396,132 @@ class WorkstationsController {
       summary:
         `${actor.displayName} removed ${allocation.asset.category.name} ` +
         `${allocation.asset.assetTag} from station ${station.seatCode} (archived, recoverable)`,
+    });
+    return { removed: true };
+  }
+
+  /** Admin adds an item at a name-plate cabin: created and issued to that person. */
+  @RequirePermissions('workspace.manage')
+  @Post('plates/:employeeId/equipment')
+  async addPlateEquipment(
+    @Param('employeeId') employeeId: string,
+    @Body() body: { categoryId: string; model?: string; serialNumber?: string },
+    @CurrentUser() actor: Principal,
+  ) {
+    const emp = await this.prisma.employee.findFirst({ where: { id: employeeId } });
+    if (!emp) throw new NotFoundException('That cabin has no matching record.');
+    const category = await this.prisma.assetCategory.findFirst({ where: { id: body.categoryId } });
+    if (!category) throw new BadRequestException('Choose what kind of item this is.');
+
+    const serial = body.serialNumber?.trim() || null;
+    if (serial) {
+      const dupe = await this.prisma.asset.findFirst({ where: { serialNumber: serial } });
+      if (dupe) throw new BadRequestException(`Serial ${serial} already belongs to ${dupe.assetTag}.`);
+    }
+
+    const prefix = (category.tagPrefix ?? category.code.slice(0, 4)).toUpperCase();
+    let n = 1000 + (await this.prisma.asset.count({
+      where: { assetTag: { startsWith: `${prefix}-` }, deletedAt: undefined },
+    }));
+    let assetTag = '';
+    for (;;) {
+      n += 1;
+      assetTag = `${prefix}-${n}`;
+      if (!(await this.prisma.asset.findFirst({ where: { assetTag, deletedAt: undefined } }))) break;
+    }
+
+    const asset = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.asset.create({
+        data: {
+          assetTag, serialNumber: serial, categoryId: category.id,
+          model: body.model?.trim() || null,
+          status: AssetStatus.ALLOCATED, condition: AssetCondition.GOOD,
+          branchId: emp.branchId,
+          currentHolderEmployeeId: emp.id,
+          createdById: actor.userId,
+        },
+      });
+      const allocation = await tx.assetAllocation.create({
+        data: {
+          assetId: a.id,
+          holderType: AllocationHolderType.EMPLOYEE,
+          employeeId: emp.id,
+          holderLabel: `${emp.fullName} (${emp.employeeCode})`,
+          status: AllocationStatus.ACTIVE,
+          allocatedAt: new Date(),
+          conditionOut: AssetCondition.GOOD,
+          createdById: actor.userId,
+        },
+      });
+      await tx.asset.update({ where: { id: a.id }, data: { currentAllocationId: allocation.id } });
+      await tx.assetEvent.create({
+        data: {
+          assetId: a.id, eventType: AssetEventType.ALLOCATED,
+          summary: `Issued to ${emp.fullName} from the seat map by ${actor.displayName}`,
+          actorUserId: actor.userId, actorName: actor.displayName,
+        },
+      });
+      return a;
+    });
+
+    await this.audit.record({
+      action: AuditAction.CREATE,
+      entityType: 'Asset', entityId: asset.id, entityLabel: asset.assetTag,
+      summary: `${actor.displayName} added a ${category.name} for ${emp.fullName} via the seat map`,
+    });
+    return { id: asset.id, assetTag };
+  }
+
+  /** Admin removes an item from a name-plate cabin: allocation voided, asset archived. */
+  @RequirePermissions('workspace.manage')
+  @Post('plates/:employeeId/equipment/:assetId/remove')
+  async removePlateEquipment(
+    @Param('employeeId') employeeId: string,
+    @Param('assetId') assetId: string,
+    @CurrentUser() actor: Principal,
+  ) {
+    const allocation = await this.prisma.assetAllocation.findFirst({
+      where: { assetId, employeeId, status: AllocationStatus.ACTIVE },
+      include: {
+        asset: { include: { category: { select: { name: true } } } },
+        employee: { select: { fullName: true } },
+      },
+    });
+    if (!allocation) throw new NotFoundException('That item is not held there any more.');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.assetAllocation.update({
+        where: { id: allocation.id },
+        data: {
+          deletedAt: new Date(), deletedById: actor.userId,
+          voidReason: `Removed via the seat map by ${actor.displayName}`,
+        },
+      });
+      await tx.asset.update({
+        where: { id: assetId },
+        data: {
+          status: AssetStatus.RETIRED,
+          deletedAt: new Date(), deletedById: actor.userId,
+          archivedAt: new Date(),
+          archiveReason: `Removed from ${allocation.employee?.fullName ?? 'cabin'} via the seat map`,
+          currentHolderEmployeeId: null, currentAllocationId: null,
+        },
+      });
+      await tx.assetEvent.create({
+        data: {
+          assetId, eventType: AssetEventType.ARCHIVED,
+          summary: `Removed from ${allocation.employee?.fullName ?? 'cabin'} via the seat map`,
+          actorUserId: actor.userId, actorName: actor.displayName,
+        },
+      });
+    });
+
+    await this.audit.record({
+      action: AuditAction.SOFT_DELETE,
+      entityType: 'Asset', entityId: assetId, entityLabel: allocation.asset.assetTag,
+      summary:
+        `${actor.displayName} removed ${allocation.asset.category.name} ` +
+        `${allocation.asset.assetTag} from ${allocation.employee?.fullName ?? 'cabin'} (archived)`,
     });
     return { removed: true };
   }
