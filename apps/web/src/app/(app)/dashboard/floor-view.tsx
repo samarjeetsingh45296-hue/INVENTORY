@@ -129,7 +129,7 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) 
         })
       }
       title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
-      className="flex h-8 w-[58px] items-center justify-center rounded border font-mono
+      className="flex h-8 w-full items-center justify-center rounded border font-mono
                  text-[10px] font-medium shadow-sm transition hover:scale-[1.08] hover:shadow"
       style={{
         background: seat.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
@@ -148,10 +148,10 @@ function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen:
   return (
     // Left-aligned, never centred: a 3-column wing must line up with its
     // 6-column neighbours, and a part-filled row with the row facing it.
-    <div className="grid justify-start gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
+    <div className="grid justify-start gap-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(58px, 1fr))` }}>
       {seats.map((s) => <SeatBox key={s.id} seat={s} onOpen={onOpen} />)}
       {Array.from({ length: blanks }).map((_, i) => (
-        <div key={`b${i}`} className="h-8 w-[58px] rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
+        <div key={`b${i}`} className="h-8 rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
       ))}
     </div>
   );
@@ -197,7 +197,7 @@ function CabinBox({
       className={`grid shrink-0 place-items-center rounded-md border border-[rgb(var(--border-hard))]
                   bg-[rgb(var(--surface))] px-2 text-center text-[12px] font-semibold
                   text-[rgb(var(--text))] shadow-sm transition hover:border-[rgb(var(--ring))]
-                  ${tall ? 'min-w-36 flex-1 self-stretch' : 'min-w-28 flex-1 self-stretch'}`}
+                  ${tall ? 'w-44 shrink-0 self-stretch' : 'w-40 shrink-0 self-stretch'}`}
     >
       {name}
     </button>
@@ -240,7 +240,7 @@ function ZoneBlock({
         <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
       )}
       <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []}
-                 grow={grow && !seg.cabin} onOpen={onOpen} />
+                 grow={grow} onOpen={onOpen} />
     </div>
   );
 
@@ -355,7 +355,7 @@ export function FloorView() {
       {zones.map((zone, i) => (
         <div key={i} className="contents">
           {i > 0 && <Lobby />}
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
             {!bandBelow && <Band label={zone.bandLabel} />}
             <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates}
                        indSeat={indSeat} onOpen={setOpened} />
