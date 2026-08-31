@@ -175,7 +175,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="fade-in mx-auto w-full max-w-[90rem] flex-1 p-3 md:p-5">
+        <main className="fade-in w-full min-w-0 flex-1 p-3 md:p-5">
           {children}
         </main>
       </div>

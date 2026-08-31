@@ -311,14 +311,17 @@ function ZoneBlock({
   );
 }
 
+/** Past this the seat boxes read as oversized rather than generous. */
+const MAX_SCALE = 1.4;
+
 /**
- * Scales the map down so the whole floor is visible at once.
+ * Scales the map so the whole floor is visible at once and fills its card.
  *
  * The plan has a fixed natural width - 58px seat boxes in fixed grids - and
  * that is deliberately kept, because uniform boxes are what make it read
- * like the sheet. Rather than reflow it on small screens, the drawn map is
- * measured and scaled to whatever width the page gives it. It never scales
- * above 1, so on a wide screen it renders at full size.
+ * like the sheet. Rather than reflow it, the drawn map is measured and scaled
+ * to whatever width the page gives it - down on a laptop, up on a wide
+ * monitor - so it always fits exactly, with no scrolling and no gap beside it.
  */
 function useFitToWidth() {
   const outer = useRef<HTMLDivElement | null>(null);
@@ -333,7 +336,9 @@ function useFitToWidth() {
     const natural = i.scrollWidth;
     const available = o.clientWidth;
     if (!natural || !available) return;
-    const next = Math.min(1, available / natural);
+    // Grow into spare width as well as shrink, so the map never leaves a gap
+    // beside it. Capped, because past a point the boxes just look oversized.
+    const next = Math.min(MAX_SCALE, available / natural);
     setScale(next);
     // The wrapper must claim the scaled height, or the transform leaves a gap.
     setHeight(i.scrollHeight * next);
