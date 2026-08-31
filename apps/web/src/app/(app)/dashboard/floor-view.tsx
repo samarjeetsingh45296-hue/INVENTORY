@@ -19,59 +19,172 @@ interface Plate { name: string; employeeId: string | null; equipment: Item[] }
 interface FloorData { seats: Seat[]; plates: Plate[] }
 
 /**
- * The plan, box for box. Column counts per wing are taken from the team's
- * own sheet, so rows break exactly where the picture breaks them. Every seat
- * is the same-sized box; the name-plates and the Induction Space are cabins
- * with equipment of their own, and open the same popup.
+ * The plan, reproduced structurally: every wing is TWO facing rows of seats
+ * with its "Wing X" band between them, exactly as the desks face each other
+ * on the sheet. Which seat lands in which row follows the sheet's own
+ * numbering (odd opposite even), and the reading direction flips where the
+ * sheet flips it. The cabin boxes sit beside the wings the sheet puts them
+ * beside, and the zone names live in the orange corridor bands - not as
+ * headers.
  */
-interface WingSpec { w: string; cols: number; plate?: string }
-interface ZoneSpec {
-  digit: string; label: string; accent: string;
-  plate?: string; platePos?: 'top' | 'bottom';
-  wings: WingSpec[]; induction?: boolean;
-}
+interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1 }
+
+const WING: Record<string, WingCfg> = {
+  '1C': { cols: 3, topParity: 1, dir: -1 },
+  '1B': { cols: 6, topParity: 0, dir: -1 },
+  '1A': { cols: 6, topParity: 0, dir: -1 },
+  '2C': { cols: 4, topParity: 1, dir: -1 },
+  '2B': { cols: 6, topParity: 1, dir: -1 },
+  '2A': { cols: 6, topParity: 1, dir: -1 },
+  '3F': { cols: 3, topParity: 1, dir: -1 },
+  '3D': { cols: 6, topParity: 1, dir: -1 },
+  '3B': { cols: 6, topParity: 1, dir: -1 },
+  '3E': { cols: 7, topParity: 1, dir: 1 },
+  '3C': { cols: 7, topParity: 1, dir: 1 },
+  '3A': { cols: 7, topParity: 1, dir: 1 },
+  '5A': { cols: 6, topParity: 1, dir: -1 },
+  '5B': { cols: 6, topParity: 1, dir: -1 },
+  '5C': { cols: 3, topParity: 1, dir: -1 },
+  '4A': { cols: 5, topParity: 0, dir: -1 },
+  '4C': { cols: 7, topParity: 1, dir: -1 },
+  '4E': { cols: 5, topParity: 0, dir: -1 },
+  '4B': { cols: 6, topParity: 0, dir: 1 },
+  '4D': { cols: 3, topParity: 1, dir: 1 },
+  '4F': { cols: 6, topParity: 1, dir: 1 },
+};
+
+/** One horizontal slice of a zone: an optional cabin beside one wing. */
+interface Segment { wing: string; cabin?: string; cabinRight?: string }
+interface ZoneSpec { segments: Segment[]; bandLabel: string }
 
 const ROW1: ZoneSpec[] = [
-  { digit: '1', label: 'Connect', accent: '--info', plate: 'Zalak Dani',
-    wings: [{ w: 'C', cols: 3 }, { w: 'B', cols: 3 }, { w: 'A', cols: 6 }] },
-  { digit: '2', label: 'Communicate', accent: '--ok', plate: 'Bhagirathsinh Chauhan',
-    wings: [{ w: 'C', cols: 4 }, { w: 'B', cols: 6 }, { w: 'A', cols: 6 }] },
-  { digit: '3', label: 'Collaborate', accent: '--bad', plate: 'Vaide Odedara',
-    wings: [{ w: 'F', cols: 3 }, { w: 'D', cols: 6 }, { w: 'B', cols: 6 }] },
-  { digit: '3', label: 'Collaborate', accent: '--bad',
-    wings: [{ w: 'E', cols: 7 }, { w: 'C', cols: 7 }, { w: 'A', cols: 7 }] },
+  { bandLabel: 'CONNECT',
+    segments: [{ wing: '1C', cabin: 'Zalak Dani' }, { wing: '1B' }, { wing: '1A' }] },
+  { bandLabel: 'COMMUNICATE',
+    segments: [{ wing: '2C', cabin: 'Bhagirathsinh Chauhan' }, { wing: '2B' }, { wing: '2A' }] },
+  { bandLabel: 'COLLABORATE',
+    segments: [{ wing: '3F', cabin: 'Vaide Odedara' }, { wing: '3D' }, { wing: '3B' }] },
+  { bandLabel: '',
+    segments: [{ wing: '3E' }, { wing: '3C' }, { wing: '3A' }] },
 ];
 
 const ROW2: ZoneSpec[] = [
-  { digit: '5', label: 'Cultivate', accent: '--viz-1',
-    plate: 'Anushka Joshi', platePos: 'bottom',
-    wings: [{ w: 'A', cols: 6 }, { w: 'B', cols: 6 }, { w: 'C', cols: 3 }] },
-  { digit: '4', label: 'Coordinate', accent: '--warn',
-    wings: [
-      { w: 'A', cols: 5, plate: 'Yash Shah' },
-      { w: 'C', cols: 7 },
-      { w: 'E', cols: 5, plate: 'Hemal Patel' },
-    ] },
-  { digit: '4', label: 'Coordinate', accent: '--warn', induction: true,
-    wings: [{ w: 'B', cols: 6 }, { w: 'D', cols: 3 }, { w: 'F', cols: 6 }] },
+  { bandLabel: 'CULTIVATE',
+    segments: [{ wing: '5A' }, { wing: '5B' }, { wing: '5C', cabin: 'Anushka Joshi' }] },
+  { bandLabel: 'COORDINATE',
+    segments: [{ wing: '4A', cabin: 'Yash Shah' }, { wing: '4C' }, { wing: '4E', cabin: 'Hemal Patel' }] },
+  { bandLabel: '',
+    segments: [{ wing: '4B' }, { wing: '4D', cabinRight: 'Induction Space' }, { wing: '4F' }] },
 ];
 
-/** What the popup needs, whichever kind of cabin was clicked. */
 interface Opened {
   title: string;
   description?: string;
   missing: string[];
   equipment: Item[];
-  /** POST here to add; POST `${base}/${assetId}/remove` to remove. */
   base: string | null;
-  /** For refreshing from live data after a mutation. */
   kind: 'seat' | 'plate';
   refId: string;
 }
 
+/** Splits a wing's seats into the two facing rows, ordered as the sheet is. */
+function splitRows(seats: Seat[], cfg: WingCfg): [Seat[], Seat[]] {
+  const num = (s: Seat) => parseInt(s.seatCode.slice(2), 10) || 0;
+  const sorted = [...seats].sort((a, b) => (num(a) - num(b)) * cfg.dir);
+  const top = sorted.filter((s) => num(s) % 2 === cfg.topParity);
+  const bottom = sorted.filter((s) => num(s) % 2 !== cfg.topParity);
+  return [top, bottom];
+}
+
+function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) {
+  return (
+    <button
+      onClick={() =>
+        onOpen({
+          title: `Seat ${seat.seatCode}`,
+          description: [seat.process, seat.wing].filter(Boolean).join('  -  '),
+          missing: seat.missing,
+          equipment: seat.equipment,
+          base: `/workstations/${seat.id}/equipment`,
+          kind: 'seat',
+          refId: seat.id,
+        })
+      }
+      title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
+      className="flex h-8 w-[58px] items-center justify-center rounded border font-mono
+                 text-[10px] font-medium shadow-sm transition hover:scale-[1.08] hover:shadow"
+      style={{
+        background: seat.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
+        color: seat.missing.length ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
+        borderColor: 'rgb(var(--border))',
+      }}
+    >
+      {seat.seatCode}
+    </button>
+  );
+}
+
+/** A row of seat boxes; empty slots keep the sheet's footprint. */
+function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen: (o: Opened) => void }) {
+  const blanks = Math.max(0, cols - seats.length);
+  return (
+    <div className="grid justify-center gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
+      {seats.map((s) => <SeatBox key={s.id} seat={s} onOpen={onOpen} />)}
+      {Array.from({ length: blanks }).map((_, i) => (
+        <div key={`b${i}`} className="h-8 w-[58px] rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
+      ))}
+    </div>
+  );
+}
+
+/** The full wing: top row, "Wing X" band, bottom row - desks facing. */
+function WingStack({
+  wingKey, seats, onOpen,
+}: { wingKey: string; seats: Seat[]; onOpen: (o: Opened) => void }) {
+  const cfg = WING[wingKey] ?? { cols: 6, topParity: 1, dir: -1 as const };
+  const [top, bottom] = splitRows(seats, cfg);
+  return (
+    <div className="min-w-0 flex-1 space-y-1">
+      <SeatRow seats={top} cols={cfg.cols} onOpen={onOpen} />
+      <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
+                      font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
+        Wing {wingKey.slice(1)}
+      </div>
+      <SeatRow seats={bottom} cols={cfg.cols} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function CabinBox({
+  name, plate, onOpen, tall = false,
+}: { name: string; plate?: Plate; onOpen: (o: Opened) => void; tall?: boolean }) {
+  return (
+    <button
+      onClick={() =>
+        onOpen({
+          title: name,
+          description: 'Cabin',
+          missing: [],
+          equipment: plate?.equipment ?? [],
+          base: plate?.employeeId ? `/workstations/plates/${plate.employeeId}/equipment` : null,
+          kind: 'plate',
+          refId: name.toLowerCase(),
+        })
+      }
+      title={`${plate?.equipment.length ?? 0} item(s) - click to view`}
+      className={`grid shrink-0 place-items-center rounded-md border border-[rgb(var(--border-hard))]
+                  bg-[rgb(var(--surface))] px-2 text-center text-[12px] font-semibold
+                  text-[rgb(var(--text))] shadow-sm transition hover:border-[rgb(var(--ring))]
+                  ${tall ? 'w-36 self-stretch' : 'w-28 self-stretch'}`}
+    >
+      {name}
+    </button>
+  );
+}
+
 function Lobby() {
   return (
-    <div className="flex w-6 items-center justify-center self-stretch rounded-md bg-[rgb(var(--surface-3))]">
+    <div className="flex w-6 items-center justify-center self-stretch rounded-md bg-[rgb(var(--viz-2)/0.10)]">
       <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]"
             style={{ writingMode: 'vertical-rl' }}>
         Lobby
@@ -80,141 +193,59 @@ function Lobby() {
   );
 }
 
-function NamePlate({ name, onClick, count }: { name: string; onClick: () => void; count: number }) {
+/** The orange strips carrying the zone names, as on the sheet. */
+function Band({ label }: { label: string }) {
   return (
-    <button
-      onClick={onClick}
-      title={`${count} item(s) - click to view`}
-      className="mb-1.5 w-full rounded-md bg-[rgb(var(--surface))] px-2 py-1.5 text-center
-                 text-[12px] font-semibold text-[rgb(var(--text))] ring-1
-                 ring-[rgb(var(--border-hard))] transition hover:ring-[rgb(var(--ring))]"
-    >
-      {name}
-    </button>
-  );
-}
-
-function ZoneBlock({
-  zone, seatsByWing, plates, onOpen,
-}: {
-  zone: ZoneSpec;
-  seatsByWing: Map<string, Seat[]>;
-  plates: Map<string, Plate>;
-  onOpen: (o: Opened) => void;
-}) {
-  const openPlate = (name: string) => {
-    const p = plates.get(name.toLowerCase());
-    onOpen({
-      title: name,
-      description: `${zone.label} cabin`,
-      missing: [],
-      equipment: p?.equipment ?? [],
-      base: p?.employeeId ? `/workstations/plates/${p.employeeId}/equipment` : null,
-      kind: 'plate',
-      refId: name.toLowerCase(),
-    });
-  };
-
-  const plateFor = (name: string) => (
-    <NamePlate
-      name={name}
-      count={plates.get(name.toLowerCase())?.equipment.length ?? 0}
-      onClick={() => openPlate(name)}
-    />
-  );
-
-  return (
-    <div
-      className="rounded-lg border p-2"
-      style={{
-        borderColor: `rgb(var(${zone.accent}) / 0.35)`,
-        background: `rgb(var(${zone.accent}) / 0.05)`,
-      }}
-    >
-      <p className="mb-1.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
-         style={{ color: `rgb(var(${zone.accent}))` }}>
-        {zone.label}
-      </p>
-      {zone.plate && zone.platePos !== 'bottom' && plateFor(zone.plate)}
-
-      {zone.wings.map(({ w, cols, plate }) => {
-        const key = `${zone.digit}${w}`;
-        const seats = seatsByWing.get(key) ?? [];
-        return (
-          <div key={key} className="mb-1.5">
-            {plate && plateFor(plate)}
-            <p className="mb-1 text-center text-[9px] font-medium uppercase tracking-[0.2em] text-[rgb(var(--muted))]">
-              Wing {w}
-            </p>
-            {seats.length === 0 ? (
-              <p className="py-1 text-center text-[9px] text-[rgb(var(--muted))]">no seats recorded</p>
-            ) : (
-              <div className="grid justify-center gap-1"
-                   style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
-                {seats.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() =>
-                      onOpen({
-                        title: `Seat ${s.seatCode}`,
-                        description: [s.process, s.wing].filter(Boolean).join('  -  '),
-                        missing: s.missing,
-                        equipment: s.equipment,
-                        base: `/workstations/${s.id}/equipment`,
-                        kind: 'seat',
-                        refId: s.id,
-                      })
-                    }
-                    title={`${s.equipment.length} item(s)${s.missing.length ? ` - missing ${s.missing.join(', ')}` : ''}`}
-                    className="flex h-8 items-center justify-center rounded border font-mono
-                               text-[10px] font-medium shadow-sm transition
-                               hover:scale-[1.08] hover:shadow"
-                    style={{
-                      background: s.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
-                      color: s.missing.length ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
-                      borderColor: 'rgb(var(--border))',
-                    }}
-                  >
-                    {s.seatCode}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {zone.plate && zone.platePos === 'bottom' && plateFor(zone.plate)}
-      {zone.induction && <InductionBox seatsByWing={seatsByWing} onOpen={onOpen} />}
+    <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
+         style={{ background: 'rgb(var(--viz-2) / 0.16)', color: 'rgb(var(--viz-2))' }}>
+      {label || ' '}
     </div>
   );
 }
 
-function InductionBox({
-  seatsByWing, onOpen,
-}: { seatsByWing: Map<string, Seat[]>; onOpen: (o: Opened) => void }) {
-  const station = seatsByWing.get('INDUCTION')?.[0];
+function ZoneBlock({
+  zone, seatsByWing, plates, indSeat, onOpen,
+}: {
+  zone: ZoneSpec;
+  seatsByWing: Map<string, Seat[]>;
+  plates: Map<string, Plate>;
+  indSeat?: Seat;
+  onOpen: (o: Opened) => void;
+}) {
   return (
-    <button
-      className="mt-2 grid h-16 w-full place-items-center rounded-md border border-dashed
-                 border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))] transition
-                 hover:border-[rgb(var(--ring))]"
-      title={station ? `${station.equipment.length} item(s) - click to view` : 'Not recorded yet'}
-      onClick={() =>
-        station &&
-        onOpen({
-          title: 'Induction Space',
-          description: 'Shared space',
-          missing: [],
-          equipment: station.equipment,
-          base: `/workstations/${station.id}/equipment`,
-          kind: 'seat',
-          refId: station.id,
-        })
-      }
-    >
-      <span className="text-[13px] font-semibold text-[rgb(var(--muted))]">Induction Space</span>
-    </button>
+    <div className="card-2 space-y-2 p-2">
+      {zone.segments.map((seg) => (
+        <div key={seg.wing} className="flex items-stretch gap-1.5">
+          {seg.cabin && (
+            <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
+          )}
+          <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []} onOpen={onOpen} />
+          {seg.cabinRight === 'Induction Space' && (
+            <button
+              onClick={() =>
+                indSeat &&
+                onOpen({
+                  title: 'Induction Space',
+                  description: 'Shared space',
+                  missing: [],
+                  equipment: indSeat.equipment,
+                  base: `/workstations/${indSeat.id}/equipment`,
+                  kind: 'seat',
+                  refId: indSeat.id,
+                })
+              }
+              title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
+              className="grid w-36 shrink-0 place-items-center self-stretch rounded-md border
+                         border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
+                         text-[12px] font-semibold text-[rgb(var(--muted))] transition
+                         hover:border-[rgb(var(--ring))]"
+            >
+              Induction Space
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -237,13 +268,14 @@ export function FloorView() {
     return map;
   }, [q.data]);
 
+  const indSeat = seatsByWing.get('INDUCTION')?.[0];
+
   const plates = useMemo(() => {
     const map = new Map<string, Plate>();
     for (const p of q.data?.plates ?? []) map.set(p.name.toLowerCase(), p);
     return map;
   }, [q.data]);
 
-  // Rebuild the open popup from fresh data after add/remove.
   const openedLive = useMemo(() => {
     if (!opened) return null;
     if (opened.kind === 'plate') {
@@ -256,6 +288,22 @@ export function FloorView() {
 
   if (q.isError) return <ErrorNote error={q.error} />;
 
+  const renderRow = (zones: ZoneSpec[], bandBelow: boolean) => (
+    <div className="flex items-stretch gap-2">
+      {zones.map((zone, i) => (
+        <div key={i} className="contents">
+          {i > 0 && <Lobby />}
+          <div className="flex min-w-0 flex-col gap-1">
+            {!bandBelow && <Band label={zone.bandLabel} />}
+            <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates}
+                       indSeat={indSeat} onOpen={setOpened} />
+            {bandBelow && <Band label={zone.bandLabel} />}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section className="card mt-3 p-4">
       <div className="mb-3 flex items-center gap-2.5">
@@ -265,36 +313,20 @@ export function FloorView() {
         <div>
           <h2 className="text-[13px] font-semibold leading-tight">Building - seat map</h2>
           <p className="mt-px text-[11px] text-[rgb(var(--muted))]">
-            Box for box as the floor plan. Seats, name-plate cabins and the
-            Induction Space all open on click.
+            As the floor plan: desks face each other across each wing band.
+            Seats, cabins and the Induction Space all open on click.
           </p>
         </div>
       </div>
 
       <div className="overflow-x-auto pb-1">
-        <div className="w-max min-w-full space-y-2">
-          <div className="flex items-stretch gap-2">
-            {ROW1.map((zone, i) => (
-              <div key={i} className="contents">
-                {i > 0 && <Lobby />}
-                <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates} onOpen={setOpened} />
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-md py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
-               style={{ background: 'rgb(var(--viz-2) / 0.12)', color: 'rgb(var(--viz-2))' }}>
+        <div className="w-max min-w-full space-y-1.5">
+          {renderRow(ROW1, true)}
+          <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
+               style={{ background: 'rgb(var(--viz-2) / 0.10)', color: 'rgb(var(--viz-2))' }}>
             Corridor
           </div>
-
-          <div className="flex items-stretch gap-2">
-            {ROW2.map((zone, i) => (
-              <div key={i} className="contents">
-                {i > 0 && <Lobby />}
-                <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates} onOpen={setOpened} />
-              </div>
-            ))}
-          </div>
+          {renderRow(ROW2, false)}
         </div>
       </div>
 
