@@ -128,7 +128,9 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) 
 function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen: (o: Opened) => void }) {
   const blanks = Math.max(0, cols - seats.length);
   return (
-    <div className="grid justify-center gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
+    // Left-aligned, never centred: a 3-column wing must line up with its
+    // 6-column neighbours, and a part-filled row with the row facing it.
+    <div className="grid justify-start gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
       {seats.map((s) => <SeatBox key={s.id} seat={s} onOpen={onOpen} />)}
       {Array.from({ length: blanks }).map((_, i) => (
         <div key={`b${i}`} className="h-8 w-[58px] rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
