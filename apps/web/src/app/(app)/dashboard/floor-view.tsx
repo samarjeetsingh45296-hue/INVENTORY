@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -311,14 +311,61 @@ function ZoneBlock({
   );
 }
 
+/**
+ * Scales the map down so the whole floor is visible at once.
+ *
+ * The plan has a fixed natural width - 58px seat boxes in fixed grids - and
+ * that is deliberately kept, because uniform boxes are what make it read
+ * like the sheet. Rather than reflow it on small screens, the drawn map is
+ * measured and scaled to whatever width the page gives it. It never scales
+ * above 1, so on a wide screen it renders at full size.
+ */
+function useFitToWidth() {
+  const outer = useRef<HTMLDivElement | null>(null);
+  const inner = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+
+  const measure = useCallback(() => {
+    const o = outer.current;
+    const i = inner.current;
+    if (!o || !i) return;
+    const natural = i.scrollWidth;
+    const available = o.clientWidth;
+    if (!natural || !available) return;
+    const next = Math.min(1, available / natural);
+    setScale(next);
+    // The wrapper must claim the scaled height, or the transform leaves a gap.
+    setHeight(i.scrollHeight * next);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (outer.current) ro.observe(outer.current);
+    if (inner.current) ro.observe(inner.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [measure]);
+
+  return { outer, inner, scale, height, measure };
+}
+
 export function FloorView() {
   const { can } = useAuth();
   const [opened, setOpened] = useState<Opened | null>(null);
+  const { outer, inner, scale, height, measure } = useFitToWidth();
 
   const q = useQuery({
     queryKey: ['floor'],
     queryFn: () => api<FloorData>('/workstations/floor'),
   });
+
+  // Seats arriving changes the natural width, so measure again.
+  useEffect(() => { measure(); }, [q.data, measure]);
 
   const seatsByWing = useMemo(() => {
     const map = new Map<string, Seat[]>();
@@ -381,8 +428,12 @@ export function FloorView() {
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="w-max min-w-full space-y-1.5">
+      <div ref={outer} className="w-full" style={{ height }}>
+        <div
+          ref={inner}
+          className="w-max space-y-1.5"
+          style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+        >
           {renderRow(ROW1, true)}
           <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
                style={{ background: 'rgb(var(--viz-2) / 0.10)', color: 'rgb(var(--viz-2))' }}>
