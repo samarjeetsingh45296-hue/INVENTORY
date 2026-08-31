@@ -20,18 +20,128 @@ interface Seat {
 }
 
 /**
- * The floor is read straight off the seat codes: 1A001 means process area 1,
- * wing A, seat 1. Areas sit in the same arrangement as the building - three
- * across the top, the corridor, two below - and the plan shows seat numbers
- * only, never a name.
+ * The floor, arranged as the building actually is - taken from the team's
+ * own plan. Seat codes carry the geography (1A001 = area 1, wing A, seat 1);
+ * Collaborate and Coordinate each continue across a lobby, and the zone
+ * name-plates (Zalak Dani, Yash Shah, ...) sit where the plan places them.
+ * Seats themselves show numbers only.
  */
-const AREAS: Array<{ digit: string; label: string; row: 1 | 2 }> = [
-  { digit: '1', label: 'CONNECT', row: 1 },
-  { digit: '2', label: 'COMMUNICATE', row: 1 },
-  { digit: '3', label: 'COLLABORATE', row: 1 },
-  { digit: '5', label: 'CULTIVATE', row: 2 },
-  { digit: '4', label: 'COORDINATE', row: 2 },
+interface Zone {
+  digit: string;
+  label: string;
+  accent: string; // css token name
+  /** Wings top-to-bottom as on the plan, with an optional name-plate above. */
+  wings: Array<{ w: string; plate?: string }>;
+  plate?: string;
+  induction?: boolean;
+}
+
+const ROW1: Zone[] = [
+  { digit: '1', label: 'Connect', accent: '--info', plate: 'Zalak Dani',
+    wings: [{ w: 'C' }, { w: 'B' }, { w: 'A' }] },
+  { digit: '2', label: 'Communicate', accent: '--ok', plate: 'Bhagirathsinh Chauhan',
+    wings: [{ w: 'C' }, { w: 'B' }, { w: 'A' }] },
+  { digit: '3', label: 'Collaborate', accent: '--bad', plate: 'Vaide Odedara',
+    wings: [{ w: 'F' }, { w: 'D' }, { w: 'B' }] },
+  { digit: '3', label: 'Collaborate', accent: '--bad',
+    wings: [{ w: 'E' }, { w: 'C' }, { w: 'A' }] },
 ];
+
+const ROW2: Zone[] = [
+  { digit: '5', label: 'Cultivate', accent: '--viz-1', plate: 'Anushka Joshi',
+    wings: [{ w: 'A' }, { w: 'B' }, { w: 'C' }] },
+  { digit: '4', label: 'Coordinate', accent: '--warn',
+    wings: [{ w: 'A', plate: 'Yash Shah' }, { w: 'C' }, { w: 'E', plate: 'Hemal Patel' }] },
+  { digit: '4', label: 'Coordinate', accent: '--warn', induction: true,
+    wings: [{ w: 'B' }, { w: 'D' }, { w: 'F' }] },
+];
+
+function Lobby() {
+  return (
+    <div className="flex items-center justify-center rounded-md bg-[rgb(var(--surface-3))]">
+      <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]"
+            style={{ writingMode: 'vertical-rl' }}>
+        Lobby
+      </span>
+    </div>
+  );
+}
+
+function ZoneBlock({
+  zone, grouped, onOpen,
+}: {
+  zone: Zone;
+  grouped: Map<string, Map<string, Seat[]>>;
+  onOpen: (s: Seat) => void;
+}) {
+  const wings = grouped.get(zone.digit);
+  return (
+    <div
+      className="rounded-lg border p-2"
+      style={{
+        borderColor: `rgb(var(${zone.accent}) / 0.35)`,
+        background: `rgb(var(${zone.accent}) / 0.05)`,
+      }}
+    >
+      <p className="mb-1.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
+         style={{ color: `rgb(var(${zone.accent}))` }}>
+        {zone.label}
+      </p>
+      {zone.plate && (
+        <p className="mb-1.5 rounded-md bg-[rgb(var(--surface))] px-2 py-1 text-center
+                      text-[12px] font-semibold text-[rgb(var(--text))] ring-1 ring-[rgb(var(--border))]">
+          {zone.plate}
+        </p>
+      )}
+      {zone.wings.map(({ w, plate }) => {
+        const seats = (wings?.get(w) ?? []) as Seat[];
+        return (
+          <div key={w} className="mb-1.5">
+            {plate && (
+              <p className="mb-1 rounded-md bg-[rgb(var(--surface))] px-2 py-1 text-center
+                            text-[12px] font-semibold text-[rgb(var(--text))] ring-1 ring-[rgb(var(--border))]">
+                {plate}
+              </p>
+            )}
+            <p className="mb-1 text-center text-[9px] font-medium uppercase tracking-[0.2em] text-[rgb(var(--muted))]">
+              Wing {w}
+            </p>
+            {seats.length === 0 ? (
+              <p className="py-1 text-center text-[9px] text-[rgb(var(--muted))]">no seats recorded</p>
+            ) : (
+              <div className="grid gap-1"
+                   style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(58px, 1fr))' }}>
+                {seats.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onOpen(s)}
+                    title={`${s.equipment.length} item(s)${s.missing.length ? ` - missing ${s.missing.join(', ')}` : ''}`}
+                    className="flex h-9 items-center justify-center rounded-md border
+                               font-mono text-[11px] font-medium shadow-sm transition
+                               hover:scale-[1.06] hover:shadow"
+                    style={{
+                      background: s.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
+                      color: s.missing.length ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
+                      borderColor: 'rgb(var(--border))',
+                    }}
+                  >
+                    {s.seatCode}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {zone.induction && (
+        <div className="mt-2 grid h-16 place-items-center rounded-md border border-dashed
+                        border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]">
+          <span className="text-[13px] font-semibold text-[rgb(var(--muted))]">Induction Space</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function FloorView() {
   const { can } = useAuth();
@@ -71,80 +181,39 @@ export function FloorView() {
         <div>
           <h2 className="text-[13px] font-semibold leading-tight">Building - seat map</h2>
           <p className="mt-px text-[11px] text-[rgb(var(--muted))]">
-            Click a seat to see and manage its equipment. Green is fully
-            equipped, amber is short of something.
+            Laid out as the floor really is. Click a seat for its equipment -
+            green is fully equipped, amber is short of something.
           </p>
         </div>
       </div>
 
       <div className="overflow-x-auto pb-1">
-        <div className="min-w-[900px]">
-          {[1, 2].map((row) => (
-            <div key={row}>
-              {row === 2 && (
-                <div className="my-2 rounded bg-[rgb(var(--surface-3))] py-1 text-center
-                                text-[10px] font-semibold uppercase tracking-[0.3em]
-                                text-[rgb(var(--muted))]">
-                  Corridor
-                </div>
-              )}
-              <div
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${AREAS.filter((a) => a.row === row).length}, 1fr)` }}
-              >
-                {AREAS.filter((a) => a.row === row).map((area) => {
-                  const wings = grouped.get(area.digit);
-                  return (
-                    <div key={area.digit} className="card-2 p-2">
-                      <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
-                        {area.label}
-                      </p>
-                      {[...(wings ?? new Map())]
-                        .sort((a, b) => (b[0] < a[0] ? 1 : -1))
-                        .map(([wing, seats]) => (
-                          <div key={wing} className="mb-2">
-                            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-[rgb(var(--muted))]">
-                              Wing {wing}
-                            </p>
-                            {/* Uniform boxes, like the sheet's cells - the seat
-                                number sits where the name used to be. */}
-                            <div
-                              className="grid gap-1"
-                              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))' }}
-                            >
-                              {(seats as Seat[]).map((s) => (
-                                <button
-                                  key={s.id}
-                                  onClick={() => setOpenSeat(s)}
-                                  title={`${s.equipment.length} item(s)${s.missing.length ? ` - missing ${s.missing.join(', ')}` : ''}`}
-                                  className="flex h-10 items-center justify-center rounded-md
-                                             border font-mono text-[11px] font-medium
-                                             transition-colors"
-                                  style={{
-                                    background: s.missing.length
-                                      ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
-                                    color: s.missing.length
-                                      ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
-                                    borderColor: 'rgb(var(--border))',
-                                  }}
-                                >
-                                  {s.seatCode}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      {!wings && (
-                        <p className="py-3 text-center text-[10px] text-[rgb(var(--muted))]">
-                          no seats recorded
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+        <div className="min-w-[1000px] space-y-2">
+          <div className="grid gap-2"
+               style={{ gridTemplateColumns: '1fr 26px 1fr 26px 1fr 26px 1fr' }}>
+            {ROW1.map((zone, i) => (
+              <div key={i} className="contents">
+                {i > 0 && <Lobby />}
+                <ZoneBlock zone={zone} grouped={grouped} onOpen={setOpenSeat} />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          <div className="rounded-md py-1.5 text-center text-[10px] font-bold uppercase
+                          tracking-[0.4em]"
+               style={{ background: 'rgb(var(--viz-2) / 0.12)', color: 'rgb(var(--viz-2))' }}>
+            Corridor
+          </div>
+
+          <div className="grid gap-2"
+               style={{ gridTemplateColumns: '1fr 26px 1.3fr 26px 1fr' }}>
+            {ROW2.map((zone, i) => (
+              <div key={i} className="contents">
+                {i > 0 && <Lobby />}
+                <ZoneBlock zone={zone} grouped={grouped} onOpen={setOpenSeat} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
