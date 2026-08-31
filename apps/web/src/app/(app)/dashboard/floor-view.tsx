@@ -166,7 +166,7 @@ function WingStack({
   return (
     // When a cabin shares the row, the wing keeps its natural width and the
     // cabin grows to fill whatever is left - so nothing sits empty.
-    <div className={`min-w-0 space-y-1 ${grow ? 'flex-1' : 'flex-none'}`}>
+    <div className={`space-y-1 ${grow ? 'flex-1' : 'flex-none'}`}>
       <SeatRow seats={top} cols={cfg.cols} onOpen={onOpen} />
       <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
                       font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
@@ -197,7 +197,7 @@ function CabinBox({
       className={`grid shrink-0 place-items-center rounded-md border border-[rgb(var(--border-hard))]
                   bg-[rgb(var(--surface))] px-2 text-center text-[12px] font-semibold
                   text-[rgb(var(--text))] shadow-sm transition hover:border-[rgb(var(--ring))]
-                  ${tall ? 'w-44 shrink-0 self-stretch' : 'w-40 shrink-0 self-stretch'}`}
+                  ${tall ? 'w-36 shrink-0 self-stretch' : 'w-32 shrink-0 self-stretch'}`}
     >
       {name}
     </button>
@@ -355,7 +355,7 @@ export function FloorView() {
       {zones.map((zone, i) => (
         <div key={i} className="contents">
           {i > 0 && <Lobby />}
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-fit flex-1 flex-col gap-1">
             {!bandBelow && <Band label={zone.bandLabel} />}
             <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates}
                        indSeat={indSeat} onOpen={setOpened} />
