@@ -50,7 +50,7 @@ const WING: Record<string, WingCfg> = {
   '4E': { cols: 5, topParity: 0, dir: -1 },
   // The sheet's top row here is irregular: 151 sits beside 150, not below.
   '4B': { cols: 6, topParity: 0, dir: 1, top: [144, 146, 148, 150, 151, 152] },
-  '4D': { cols: 3, topParity: 1, dir: 1 },
+  '4D': { cols: 3, topParity: 0, dir: 1 },
   '4F': { cols: 6, topParity: 1, dir: 1 },
 };
 
@@ -59,8 +59,12 @@ interface Segment { wing: string; cabin?: string }
 interface ZoneSpec {
   segments: Segment[];
   bandLabel: string;
-  /** A box spanning the right side of these wings, as Induction Space does. */
-  rightSpan?: { label: string; wings: string[] };
+  /**
+   * A tall box on the right, as the Induction Space is on the sheet: the
+   * splitWing's top row and band span the full width above it, then the box
+   * runs beside that wing's bottom row and the listed wings below.
+   */
+  rightSpan?: { label: string; splitWing: string; wings: string[] };
 }
 
 const ROW1: ZoneSpec[] = [
@@ -81,7 +85,7 @@ const ROW2: ZoneSpec[] = [
     segments: [{ wing: '4A', cabin: 'Yash Shah' }, { wing: '4C' }, { wing: '4E', cabin: 'Hemal Patel' }] },
   { bandLabel: '',
     segments: [{ wing: '4B' }, { wing: '4D' }, { wing: '4F' }],
-    rightSpan: { label: 'Induction Space', wings: ['4B', '4D'] } },
+    rightSpan: { label: 'Induction Space', splitWing: '4B', wings: ['4D'] } },
 ];
 
 interface Opened {
@@ -230,8 +234,6 @@ function ZoneBlock({
   indSeat?: Seat;
   onOpen: (o: Opened) => void;
 }) {
-  const spanned = new Set(zone.rightSpan?.wings ?? []);
-
   const segmentRow = (seg: Segment, grow: boolean) => (
     <div key={seg.wing} className="flex items-stretch gap-1.5">
       {seg.cabin && (
@@ -242,39 +244,69 @@ function ZoneBlock({
     </div>
   );
 
+  const splitCfg = zone.rightSpan
+    ? WING[zone.rightSpan.splitWing] ?? { cols: 6, topParity: 1 as const, dir: 1 as const }
+    : null;
+  const splitSeats = zone.rightSpan
+    ? splitRows(seatsByWing.get(zone.rightSpan.splitWing) ?? [], splitCfg as WingCfg)
+    : null;
+
   return (
     <div className="card-2 space-y-2 p-2">
-      {zone.rightSpan && (
-        // The spanning box sits to the right of several wings at once, tall
-        // across all of them - as the Induction Space does on the sheet.
-        <div className="flex items-stretch gap-1.5">
-          <div className="flex-1 space-y-2">
-            {zone.segments.filter((g) => spanned.has(g.wing)).map((g) => segmentRow(g, true))}
+      {zone.rightSpan && splitCfg && splitSeats && (
+        <div className="space-y-1">
+          {/* The split wing's top row and band run the full width... */}
+          <SeatRow seats={splitSeats[0]} cols={splitCfg.cols} onOpen={onOpen} />
+          <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
+                          font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
+            Wing {zone.rightSpan.splitWing.slice(1)}
           </div>
-          <button
-            onClick={() =>
-              indSeat &&
-              onOpen({
-                title: zone.rightSpan?.label ?? '',
-                description: 'Shared space',
-                missing: [],
-                equipment: indSeat.equipment,
-                base: `/workstations/${indSeat.id}/equipment`,
-                kind: 'seat',
-                refId: indSeat.id,
-              })
-            }
-            title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
-            className="grid w-44 shrink-0 place-items-center self-stretch rounded-md border
-                       border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
-                       text-[13px] font-semibold text-[rgb(var(--muted))] transition
-                       hover:border-[rgb(var(--ring))]"
-          >
-            {zone.rightSpan.label}
-          </button>
+          {/* ...then the tall box starts beside its bottom row and spans the
+              wings beneath, exactly as the sheet draws the Induction Space. */}
+          <div className="flex items-stretch gap-1.5 pt-1">
+            <div className="space-y-2">
+              <SeatRow
+                seats={splitSeats[1]}
+                cols={Math.max(splitSeats[1].length, 1)}
+                onOpen={onOpen}
+              />
+              {zone.segments
+                .filter((g) => zone.rightSpan?.wings.includes(g.wing))
+                .map((g) => (
+                  <WingStack key={g.wing} wingKey={g.wing}
+                             seats={seatsByWing.get(g.wing) ?? []}
+                             grow={false} onOpen={onOpen} />
+                ))}
+            </div>
+            <button
+              onClick={() =>
+                indSeat &&
+                onOpen({
+                  title: zone.rightSpan?.label ?? '',
+                  description: 'Shared space',
+                  missing: [],
+                  equipment: indSeat.equipment,
+                  base: `/workstations/${indSeat.id}/equipment`,
+                  kind: 'seat',
+                  refId: indSeat.id,
+                })
+              }
+              title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
+              className="grid min-w-40 flex-1 place-items-center self-stretch rounded-md border
+                         border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
+                         text-[13px] font-semibold text-[rgb(var(--muted))] transition
+                         hover:border-[rgb(var(--ring))]"
+            >
+              {zone.rightSpan.label}
+            </button>
+          </div>
         </div>
       )}
-      {zone.segments.filter((g) => !spanned.has(g.wing)).map((g) => segmentRow(g, true))}
+      {zone.segments
+        .filter((g) =>
+          !zone.rightSpan ||
+          (g.wing !== zone.rightSpan.splitWing && !zone.rightSpan.wings.includes(g.wing)))
+        .map((g) => segmentRow(g, true))}
     </div>
   );
 }
