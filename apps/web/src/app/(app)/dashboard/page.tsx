@@ -8,6 +8,7 @@ import {
 import { api } from '@/lib/api';
 import { useRealtime } from '@/hooks/use-realtime';
 import { PageHeader, ErrorNote } from '@/components/ui';
+import { FloorView } from './floor-view';
 
 interface Kpis {
   totals: {
@@ -141,6 +142,7 @@ export default function DashboardPage() {
              sub={d ? `${d.repairs.open} open` : undefined} />
       </div>
 
+      <FloorView />
     </>
   );
 }
