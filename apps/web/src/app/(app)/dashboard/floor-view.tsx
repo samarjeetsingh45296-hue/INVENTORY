@@ -27,7 +27,7 @@ interface FloorData { seats: Seat[]; plates: Plate[] }
  * beside, and the zone names live in the orange corridor bands - not as
  * headers.
  */
-interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1 }
+interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1; top?: number[] }
 
 const WING: Record<string, WingCfg> = {
   '1C': { cols: 3, topParity: 1, dir: -1 },
@@ -48,14 +48,20 @@ const WING: Record<string, WingCfg> = {
   '4A': { cols: 5, topParity: 0, dir: -1 },
   '4C': { cols: 7, topParity: 1, dir: -1 },
   '4E': { cols: 5, topParity: 0, dir: -1 },
-  '4B': { cols: 6, topParity: 0, dir: 1 },
+  // The sheet's top row here is irregular: 151 sits beside 150, not below.
+  '4B': { cols: 6, topParity: 0, dir: 1, top: [144, 146, 148, 150, 151, 152] },
   '4D': { cols: 3, topParity: 1, dir: 1 },
   '4F': { cols: 6, topParity: 1, dir: 1 },
 };
 
 /** One horizontal slice of a zone: an optional cabin beside one wing. */
-interface Segment { wing: string; cabin?: string; cabinRight?: string }
-interface ZoneSpec { segments: Segment[]; bandLabel: string }
+interface Segment { wing: string; cabin?: string }
+interface ZoneSpec {
+  segments: Segment[];
+  bandLabel: string;
+  /** A box spanning the right side of these wings, as Induction Space does. */
+  rightSpan?: { label: string; wings: string[] };
+}
 
 const ROW1: ZoneSpec[] = [
   { bandLabel: 'CONNECT',
@@ -74,7 +80,8 @@ const ROW2: ZoneSpec[] = [
   { bandLabel: 'COORDINATE',
     segments: [{ wing: '4A', cabin: 'Yash Shah' }, { wing: '4C' }, { wing: '4E', cabin: 'Hemal Patel' }] },
   { bandLabel: '',
-    segments: [{ wing: '4B' }, { wing: '4D', cabinRight: 'Induction Space' }, { wing: '4F' }] },
+    segments: [{ wing: '4B' }, { wing: '4D' }, { wing: '4F' }],
+    rightSpan: { label: 'Induction Space', wings: ['4B', '4D'] } },
 ];
 
 interface Opened {
@@ -91,6 +98,13 @@ interface Opened {
 function splitRows(seats: Seat[], cfg: WingCfg): [Seat[], Seat[]] {
   const num = (s: Seat) => parseInt(s.seatCode.slice(2), 10) || 0;
   const sorted = [...seats].sort((a, b) => (num(a) - num(b)) * cfg.dir);
+  if (cfg.top) {
+    const top = cfg.top
+      .map((n) => sorted.find((s) => num(s) === n))
+      .filter((s): s is Seat => Boolean(s));
+    const bottom = sorted.filter((s) => !cfg.top?.includes(num(s)));
+    return [top, bottom];
+  }
   const top = sorted.filter((s) => num(s) % 2 === cfg.topParity);
   const bottom = sorted.filter((s) => num(s) % 2 !== cfg.topParity);
   return [top, bottom];
@@ -216,40 +230,51 @@ function ZoneBlock({
   indSeat?: Seat;
   onOpen: (o: Opened) => void;
 }) {
+  const spanned = new Set(zone.rightSpan?.wings ?? []);
+
+  const segmentRow = (seg: Segment, grow: boolean) => (
+    <div key={seg.wing} className="flex items-stretch gap-1.5">
+      {seg.cabin && (
+        <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
+      )}
+      <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []}
+                 grow={grow && !seg.cabin} onOpen={onOpen} />
+    </div>
+  );
+
   return (
     <div className="card-2 space-y-2 p-2">
-      {zone.segments.map((seg) => (
-        <div key={seg.wing} className="flex items-stretch gap-1.5">
-          {seg.cabin && (
-            <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
-          )}
-          <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []}
-                     grow={!seg.cabin && !seg.cabinRight} onOpen={onOpen} />
-          {seg.cabinRight === 'Induction Space' && (
-            <button
-              onClick={() =>
-                indSeat &&
-                onOpen({
-                  title: 'Induction Space',
-                  description: 'Shared space',
-                  missing: [],
-                  equipment: indSeat.equipment,
-                  base: `/workstations/${indSeat.id}/equipment`,
-                  kind: 'seat',
-                  refId: indSeat.id,
-                })
-              }
-              title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
-              className="grid min-w-36 flex-1 place-items-center self-stretch rounded-md border
-                         border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
-                         text-[12px] font-semibold text-[rgb(var(--muted))] transition
-                         hover:border-[rgb(var(--ring))]"
-            >
-              Induction Space
-            </button>
-          )}
+      {zone.rightSpan && (
+        // The spanning box sits to the right of several wings at once, tall
+        // across all of them - as the Induction Space does on the sheet.
+        <div className="flex items-stretch gap-1.5">
+          <div className="flex-1 space-y-2">
+            {zone.segments.filter((g) => spanned.has(g.wing)).map((g) => segmentRow(g, true))}
+          </div>
+          <button
+            onClick={() =>
+              indSeat &&
+              onOpen({
+                title: zone.rightSpan?.label ?? '',
+                description: 'Shared space',
+                missing: [],
+                equipment: indSeat.equipment,
+                base: `/workstations/${indSeat.id}/equipment`,
+                kind: 'seat',
+                refId: indSeat.id,
+              })
+            }
+            title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
+            className="grid w-44 shrink-0 place-items-center self-stretch rounded-md border
+                       border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
+                       text-[13px] font-semibold text-[rgb(var(--muted))] transition
+                       hover:border-[rgb(var(--ring))]"
+          >
+            {zone.rightSpan.label}
+          </button>
         </div>
-      ))}
+      )}
+      {zone.segments.filter((g) => !spanned.has(g.wing)).map((g) => segmentRow(g, true))}
     </div>
   );
 }
