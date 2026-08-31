@@ -35,7 +35,6 @@ const AREAS: Array<{ digit: string; label: string; row: 1 | 2 }> = [
 
 export function FloorView() {
   const { can } = useAuth();
-  const [flat, setFlat] = useState(false);
   const [openSeat, setOpenSeat] = useState<Seat | null>(null);
 
   const q = useQuery({
@@ -65,33 +64,21 @@ export function FloorView() {
 
   return (
     <section className="card mt-3 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[rgb(var(--surface-3))] ring-1 ring-[rgb(var(--border))]">
-            <Building2 size={15} strokeWidth={1.9} />
-          </span>
-          <div>
-            <h2 className="text-[13px] font-semibold leading-tight">Building - seat map</h2>
-            <p className="mt-px text-[11px] text-[rgb(var(--muted))]">
-              Click a seat to see and manage its equipment. Green is fully
-              equipped, amber is short of something.
-            </p>
-          </div>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-[rgb(var(--surface-3))] ring-1 ring-[rgb(var(--border))]">
+          <Building2 size={15} strokeWidth={1.9} />
+        </span>
+        <div>
+          <h2 className="text-[13px] font-semibold leading-tight">Building - seat map</h2>
+          <p className="mt-px text-[11px] text-[rgb(var(--muted))]">
+            Click a seat to see and manage its equipment. Green is fully
+            equipped, amber is short of something.
+          </p>
         </div>
-        <button className="btn-ghost" onClick={() => setFlat((f) => !f)}>
-          {flat ? '3D view' : 'Flat view'}
-        </button>
       </div>
 
-      <div className="overflow-x-auto pb-2" style={{ perspective: flat ? undefined : '1600px' }}>
-        <div
-          className="min-w-[900px] transition-transform duration-500"
-          style={flat ? undefined : {
-            transform: 'rotateX(38deg) scale(0.96)',
-            transformStyle: 'preserve-3d',
-            transformOrigin: '50% 20%',
-          }}
-        >
+      <div className="overflow-x-auto pb-1">
+        <div className="min-w-[900px]">
           {[1, 2].map((row) => (
             <div key={row}>
               {row === 2 && (
@@ -101,7 +88,10 @@ export function FloorView() {
                   Corridor
                 </div>
               )}
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${AREAS.filter(a => a.row === row).length}, 1fr)` }}>
+              <div
+                className="grid gap-2"
+                style={{ gridTemplateColumns: `repeat(${AREAS.filter((a) => a.row === row).length}, 1fr)` }}
+              >
                 {AREAS.filter((a) => a.row === row).map((area) => {
                   const wings = grouped.get(area.digit);
                   return (
@@ -109,35 +99,45 @@ export function FloorView() {
                       <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
                         {area.label}
                       </p>
-                      {[...(wings ?? new Map())].sort((a, b) => b[0] < a[0] ? 1 : -1).map(([wing, seats]) => (
-                        <div key={wing} className="mb-1.5">
-                          <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-[rgb(var(--muted))]">
-                            Wing {wing}
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {(seats as Seat[]).map((s) => (
-                              <button
-                                key={s.id}
-                                onClick={() => setOpenSeat(s)}
-                                title={`${s.seatCode} - ${s.equipment.length} item(s)${s.missing.length ? `, missing ${s.missing.join(', ')}` : ''}`}
-                                className="rounded px-1 py-0.5 font-mono text-[9px] leading-none
-                                           transition-transform hover:-translate-y-0.5"
-                                style={{
-                                  background: s.missing.length
-                                    ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
-                                  color: s.missing.length
-                                    ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
-                                  boxShadow: flat ? undefined : '0 2px 0 rgba(0,0,0,0.25)',
-                                }}
-                              >
-                                {s.seatCode}
-                              </button>
-                            ))}
+                      {[...(wings ?? new Map())]
+                        .sort((a, b) => (b[0] < a[0] ? 1 : -1))
+                        .map(([wing, seats]) => (
+                          <div key={wing} className="mb-2">
+                            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-[rgb(var(--muted))]">
+                              Wing {wing}
+                            </p>
+                            {/* Uniform boxes, like the sheet's cells - the seat
+                                number sits where the name used to be. */}
+                            <div
+                              className="grid gap-1"
+                              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))' }}
+                            >
+                              {(seats as Seat[]).map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => setOpenSeat(s)}
+                                  title={`${s.equipment.length} item(s)${s.missing.length ? ` - missing ${s.missing.join(', ')}` : ''}`}
+                                  className="flex h-10 items-center justify-center rounded-md
+                                             border font-mono text-[11px] font-medium
+                                             transition-colors"
+                                  style={{
+                                    background: s.missing.length
+                                      ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
+                                    color: s.missing.length
+                                      ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
+                                    borderColor: 'rgb(var(--border))',
+                                  }}
+                                >
+                                  {s.seatCode}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                       {!wings && (
-                        <p className="py-3 text-center text-[10px] text-[rgb(var(--muted))]">no seats recorded</p>
+                        <p className="py-3 text-center text-[10px] text-[rgb(var(--muted))]">
+                          no seats recorded
+                        </p>
                       )}
                     </div>
                   );
