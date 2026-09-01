@@ -1,0 +1,320 @@
+/* ---------------------------------------------------------------------------
+   Sign-in scene, after the reference recording: a dark form panel on the
+   left, and on the right a sunset field with a floating retro TV whose
+   screen glows with the brand. Everything here is scoped to the login page
+   and deliberately dark - the page wraps itself in .dark, so the app's
+   tokens resolve to the dark set no matter the chosen theme.
+--------------------------------------------------------------------------- */
+
+.stage {
+  min-height: 100vh;
+  padding: 12px;
+  background: #050403;
+  display: grid;
+}
+
+.frame {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  background: #0d0907;
+}
+@media (min-width: 1024px) {
+  .frame { grid-template-columns: minmax(24rem, 44%) 1fr; }
+}
+
+/* --- Left: the form panel ------------------------------------------------ */
+
+.panel {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px;
+  background: linear-gradient(105deg, #0d0907 62%, rgb(13 9 7 / 0) 130%);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #f4ede6;
+}
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #180a05;
+  background: linear-gradient(160deg, #ffb257, #e8551f);
+  box-shadow: 0 0 18px rgb(232 85 31 / 0.35);
+}
+
+.formCol {
+  margin: auto 0;
+  width: 100%;
+  max-width: 21rem;
+  align-self: center;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #f6f0e9;
+}
+.subtitle {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #9d938a;
+}
+
+.footNote {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 11.5px;
+  color: #8a8078;
+}
+.footNote a, .ember { color: #ff7a3d; font-weight: 600; }
+
+/* The ember-styled primary button - white pill like the reference. */
+.cta {
+  width: 100%;
+  height: 40px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  color: #171310;
+  background: #f7f3ee;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s;
+  box-shadow: 0 6px 24px -8px rgb(255 158 87 / 0.35);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 28px -8px rgb(255 158 87 / 0.5); }
+.cta:active { transform: translateY(0); }
+.cta:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+/* Staggered entrance for the form - each child rises in turn. */
+.rise { opacity: 0; animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --- Right: the sunset scene --------------------------------------------- */
+
+.scene {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg,
+      #12060a 0%, #3d0f10 18%, #7a2415 38%,
+      #b8471c 58%, #d96f2e 72%, #35120c 100%);
+}
+@media (min-width: 1024px) { .scene { display: block; } }
+
+/* The sun's haze, slowly breathing. */
+.glow {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 130%;
+  aspect-ratio: 1.6;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center,
+    rgb(255 176 97 / 0.55), rgb(255 122 61 / 0.18) 45%, transparent 68%);
+  animation: breathe 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.06); }
+}
+
+/* Rolling ground: two hill silhouettes with a faint lit rim. */
+.hillFar, .hillNear {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  pointer-events: none;
+}
+.hillFar {
+  left: -55%;
+  right: -55%;
+  bottom: -34%;
+  height: 52%;
+  background: linear-gradient(180deg, #401811 0%, #1c0b08 55%);
+  box-shadow: 0 -1px 24px rgb(255 128 64 / 0.25);
+  transform: rotate(-1deg);
+}
+.hillNear {
+  left: -70%;
+  right: -70%;
+  bottom: -40%;
+  height: 55%;
+  background: linear-gradient(180deg, #2a100b 0%, #120705 60%);
+  box-shadow: 0 -1px 18px rgb(255 110 50 / 0.18);
+  transform: rotate(0.8deg);
+}
+
+/* Grass blades: thin conic slivers repeated along the near hill's crest. */
+.grass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20%;
+  background-image:
+    repeating-linear-gradient(88deg,
+      transparent 0 9px, rgb(0 0 0 / 0.28) 9px 10px),
+    repeating-linear-gradient(92deg,
+      transparent 0 13px, rgb(255 120 60 / 0.05) 13px 14px);
+  mask-image: linear-gradient(180deg, transparent, black 65%);
+  pointer-events: none;
+}
+
+/* Drifting embers. */
+.mote {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(255 170 110 / 0.8);
+  filter: blur(0.5px);
+  animation: drift 9s linear infinite;
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes drift {
+  0%   { opacity: 0; transform: translateY(0) translateX(0); }
+  12%  { opacity: 0.8; }
+  85%  { opacity: 0.25; }
+  100% { opacity: 0; transform: translateY(-46vh) translateX(4vw); }
+}
+
+/* --- The retro TV -------------------------------------------------------- */
+
+.tvWrap {
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  transform: translate(-50%, -50%);
+  animation: bob 6s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(-0.6deg); }
+  50%      { transform: translate(-50%, -50%) translateY(-12px) rotate(0.6deg); }
+}
+
+.tv {
+  position: relative;
+  width: 220px;
+  height: 172px;
+  transform: perspective(700px) rotateY(-12deg);
+  transform-style: preserve-3d;
+}
+/* Right side face, giving the cabinet its depth. */
+.tvSide {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  right: -22px;
+  width: 24px;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg, #23282c, #15181b);
+}
+.tvBody {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: linear-gradient(165deg, #3f464c, #272c30 70%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 24px 48px -16px rgb(0 0 0 / 0.7);
+  padding: 12px;
+}
+.tvScreen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 118px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, #ffe9ad 0%, #f3c96e 55%, #d99f4a 100%);
+  box-shadow:
+    inset 0 0 26px rgb(120 60 0 / 0.5),
+    0 0 34px rgb(255 190 100 / 0.45);
+  animation: screenGlow 4.5s ease-in-out infinite;
+}
+@keyframes screenGlow {
+  0%, 100% { box-shadow: inset 0 0 26px rgb(120 60 0 / 0.5), 0 0 30px rgb(255 190 100 / 0.4); }
+  50%      { box-shadow: inset 0 0 22px rgb(120 60 0 / 0.42), 0 0 46px rgb(255 200 115 / 0.6); }
+}
+/* Rolling scanline sheen across the glass. */
+.tvScreen::after {
+  content: '';
+  position: absolute;
+  inset: -60% 0;
+  background: linear-gradient(180deg,
+    transparent 44%, rgb(255 255 255 / 0.14) 50%, transparent 56%);
+  animation: scan 5s linear infinite;
+}
+@keyframes scan {
+  from { transform: translateY(-38%); }
+  to   { transform: translateY(38%); }
+}
+.tvLogo {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #241203;
+  text-shadow: 0 1px 0 rgb(255 240 200 / 0.5);
+}
+.tvLogo small {
+  font-size: 15px;
+  font-weight: 700;
+  color: #6b3c0d;
+}
+.tvSlot {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 9px;
+  border-radius: 3px;
+  background: #a3341f;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.5);
+}
+/* Feet and ground shadow. */
+.tvShadow {
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  transform: translateX(-50%);
+  width: 210px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.55), transparent 70%);
+  animation: shadowBreathe 6s ease-in-out infinite;
+}
+@keyframes shadowBreathe {
+  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.9; }
+  50%      { transform: translateX(-50%) scaleX(0.86); opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation-duration: 0.01s; }
+  .tvWrap, .glow, .tvScreen, .tvScreen::after, .tvShadow, .mote { animation: none; }
+}
