@@ -130,11 +130,15 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) 
       }
       title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
       className="flex h-8 w-full items-center justify-center rounded border font-mono
-                 text-[10px] font-medium shadow-sm transition hover:scale-[1.08] hover:shadow"
+                 text-[10px] font-semibold shadow-sm transition hover:scale-[1.08] hover:shadow"
       style={{
+        // Status lives in the tint and border; the code itself stays in the
+        // page's text color so it is legible in the light theme too.
         background: seat.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
-        color: seat.missing.length ? 'rgb(var(--warn))' : 'rgb(var(--ok))',
-        borderColor: 'rgb(var(--border))',
+        color: 'rgb(var(--text))',
+        borderColor: seat.missing.length
+          ? 'rgb(var(--warn) / 0.5)'
+          : 'rgb(var(--ok) / 0.5)',
       }}
     >
       {seat.seatCode}
@@ -219,7 +223,12 @@ function Lobby() {
 function Band({ label }: { label: string }) {
   return (
     <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
-         style={{ background: 'rgb(var(--viz-2) / 0.16)', color: 'rgb(var(--viz-2))' }}>
+         style={{
+           background: 'rgb(var(--viz-2) / 0.16)',
+           // Pulled toward the page's text color so the label holds up on the
+           // pale tint in the light theme.
+           color: 'color-mix(in srgb, rgb(var(--viz-2)) 55%, rgb(var(--text)))',
+         }}>
       {label || ' '}
     </div>
   );
@@ -441,7 +450,10 @@ export function FloorView() {
         >
           {renderRow(ROW1, true)}
           <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
-               style={{ background: 'rgb(var(--viz-2) / 0.10)', color: 'rgb(var(--viz-2))' }}>
+               style={{
+                 background: 'rgb(var(--viz-2) / 0.10)',
+                 color: 'color-mix(in srgb, rgb(var(--viz-2)) 55%, rgb(var(--text)))',
+               }}>
             Corridor
           </div>
           {renderRow(ROW2, false)}
