@@ -348,3 +348,56 @@ body {
   .cube, .cube-float, .cube-shadow { animation: none; }
   .cube { transform: rotateX(-20deg) rotateY(-32deg); }
 }
+
+/* ---------------------------------------------------------------------------
+   Sign-in scene - the full-screen coastal look from the reference recording:
+   pale sky, drifting clouds, dark sea and skyline, a shimmering ascii-dither
+   texture over everything, and a dark glass card floating in at the centre.
+--------------------------------------------------------------------------- */
+.login-scene { background: #b6bdbd; }
+
+.cloud {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(34px);
+  background: radial-gradient(circle at 35% 40%, #eceada, #c8ccc4 58%, transparent 72%);
+  animation: cloud-drift linear infinite;
+}
+@keyframes cloud-drift {
+  from { transform: translateX(-30vw); }
+  to   { transform: translateX(120vw); }
+}
+
+.wave-band { animation: wave-drift linear infinite; }
+@keyframes wave-drift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-720px); }
+}
+
+.login-card {
+  background: rgb(16 16 18 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.10);
+  box-shadow: 0 24px 80px -24px rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(10px);
+  color: #f5f5f4;
+  animation: card-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both 0.1s;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.965); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The shared form controls, committed to the card's dark look regardless of
+   the app theme - the scene is the brand, not the theme. */
+.login-scene .label { color: rgb(245 245 244 / 0.55); }
+.login-scene .input {
+  background: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.14);
+  color: #f5f5f4;
+}
+.login-scene .input::placeholder { color: rgb(245 245 244 / 0.3); }
+.login-scene .input:focus { border-color: rgb(245 245 244 / 0.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud, .wave-band, .login-card { animation: none; }
+}
