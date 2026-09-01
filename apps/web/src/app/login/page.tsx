@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Boxes, ScrollText, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -15,8 +15,13 @@ const POINTS = [
 ];
 
 export default function LoginPage() {
-  const { login, verifyMfa, enrolmentNotice } = useAuth();
+  const { user, loading, login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
+
+  // Already signed in? The sign-in page has nothing to offer - go to work.
+  useEffect(() => {
+    if (!loading && user) router.replace('/dashboard');
+  }, [loading, user, router]);
 
   const [step, setStep] = useState<'credentials' | 'mfa' | 'enrol'>('credentials');
   const [email, setEmail] = useState('');
