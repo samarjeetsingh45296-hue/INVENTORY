@@ -400,6 +400,74 @@ class WorkstationsController {
     return { removed: true };
   }
 
+  /**
+   * Admin edits an item shown in a seat or cabin popup. Keyed on the asset
+   * alone, so the same route serves seats and name-plate cabins. Only the
+   * describing fields change - the tag and category are the item's identity.
+   */
+  @RequirePermissions('workspace.manage')
+  @Post('equipment/:assetId/update')
+  async updateEquipment(
+    @Param('assetId') assetId: string,
+    @Body() body: { model?: string; serialNumber?: string },
+    @CurrentUser() actor: Principal,
+  ) {
+    const asset = await this.prisma.asset.findFirst({
+      where: { id: assetId },
+      include: { category: { select: { name: true } } },
+    });
+    if (!asset) throw new NotFoundException('That item no longer exists.');
+
+    const model = body.model?.trim() || null;
+    const serial = body.serialNumber?.trim() || null;
+    if (serial && serial !== asset.serialNumber) {
+      const dupe = await this.prisma.asset.findFirst({
+        where: { serialNumber: serial, id: { not: assetId } },
+      });
+      if (dupe) {
+        throw new BadRequestException(
+          `Serial ${serial} already belongs to ${dupe.assetTag}.`,
+        );
+      }
+    }
+
+    const changes: string[] = [];
+    if (model !== asset.model) {
+      changes.push(`model "${asset.model ?? '-'}" to "${model ?? '-'}"`);
+    }
+    if (serial !== asset.serialNumber) {
+      changes.push(`serial "${asset.serialNumber ?? '-'}" to "${serial ?? '-'}"`);
+    }
+    if (changes.length === 0) return { updated: false };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.asset.update({
+        where: { id: assetId },
+        data: { model, serialNumber: serial },
+      });
+      await tx.assetEvent.create({
+        data: {
+          assetId,
+          eventType: AssetEventType.UPDATED,
+          summary: `${actor.displayName} changed ${changes.join(' and ')}`,
+          actorUserId: actor.userId,
+          actorName: actor.displayName,
+        },
+      });
+    });
+
+    await this.audit.record({
+      action: AuditAction.UPDATE,
+      entityType: 'Asset',
+      entityId: assetId,
+      entityLabel: asset.assetTag,
+      summary:
+        `${actor.displayName} edited ${asset.category.name} ${asset.assetTag}: ` +
+        changes.join(' and '),
+    });
+    return { updated: true };
+  }
+
   /** Admin adds an item at a name-plate cabin: created and issued to that person. */
   @RequirePermissions('workspace.manage')
   @Post('plates/:employeeId/equipment')

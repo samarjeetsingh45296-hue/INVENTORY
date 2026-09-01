@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Plus, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Modal, Field, ErrorNote } from '@/components/ui';
@@ -466,6 +466,8 @@ function EquipmentPopup({
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ categoryId: '', model: '', serialNumber: '' });
+  const [editing, setEditing] = useState<Item | null>(null);
+  const [editForm, setEditForm] = useState({ model: '', serialNumber: '' });
 
   const manageable = canManage && opened.base !== null;
 
@@ -495,6 +497,17 @@ function EquipmentPopup({
     onSuccess: refresh,
   });
 
+  const edit = useMutation({
+    mutationFn: () =>
+      api(`/workstations/equipment/${(editing as Item).id}/update`, {
+        method: 'POST', body: editForm,
+      }),
+    onSuccess: () => {
+      setEditing(null);
+      refresh();
+    },
+  });
+
   return (
     <Modal
       title={opened.title}
@@ -502,7 +515,10 @@ function EquipmentPopup({
       onClose={onClose}
       footer={
         manageable ? (
-          <button className="btn-primary" onClick={() => setAdding((a) => !a)}>
+          <button
+            className="btn-primary"
+            onClick={() => { setEditing(null); setAdding((a) => !a); }}
+          >
             <Plus size={13} /> Add item
           </button>
         ) : undefined
@@ -543,25 +559,80 @@ function EquipmentPopup({
                 <td className="td">{e.model ?? '-'}</td>
                 {manageable && (
                   <td className="td text-right">
-                    <button
-                      className="btn-quiet btn-icon"
-                      title="Remove (archived, recoverable)"
-                      disabled={remove.isPending}
-                      onClick={() => {
-                        if (window.confirm(`Remove ${e.category.name} ${e.assetTag} from ${opened.title}? It is archived, not destroyed.`)) {
-                          remove.mutate(e.id);
-                        }
-                      }}
-                      style={{ color: 'rgb(var(--bad))' }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex justify-end gap-0.5">
+                      <button
+                        className="btn-quiet btn-icon"
+                        title="Edit model and serial"
+                        onClick={() => {
+                          setAdding(false);
+                          setEditing(e);
+                          setEditForm({
+                            model: e.model ?? '',
+                            serialNumber: e.serialNumber ?? '',
+                          });
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        className="btn-quiet btn-icon"
+                        title="Remove (archived, recoverable)"
+                        disabled={remove.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Remove ${e.category.name} ${e.assetTag} from ${opened.title}? It is archived, not destroyed.`)) {
+                            remove.mutate(e.id);
+                          }
+                        }}
+                        style={{ color: 'rgb(var(--bad))' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {editing && manageable && (
+        <div className="mt-3 border-t border-[rgb(var(--border))] pt-3">
+          <p className="mb-2 text-[12px] font-medium">
+            Editing {editing.category.name}{' '}
+            <span className="font-mono text-[11px] text-[rgb(var(--muted))]">
+              {editing.assetTag}
+            </span>
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="Model">
+              <input
+                className="input"
+                value={editForm.model}
+                onChange={(e) => setEditForm((f) => ({ ...f, model: e.target.value }))}
+              />
+            </Field>
+            <Field label="Serial">
+              <input
+                className="input"
+                value={editForm.serialNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, serialNumber: e.target.value }))}
+              />
+            </Field>
+          </div>
+          <div className="mt-2 flex gap-1.5">
+            <button
+              className="btn-primary"
+              disabled={edit.isPending}
+              onClick={() => edit.mutate()}
+            >
+              {edit.isPending ? 'Saving...' : 'Save changes'}
+            </button>
+            <button className="btn-ghost" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {adding && manageable && (
@@ -598,8 +669,10 @@ function EquipmentPopup({
         </div>
       )}
 
-      {(add.isError || remove.isError) && (
-        <div className="mt-2"><ErrorNote error={add.error ?? remove.error} /></div>
+      {(add.isError || remove.isError || edit.isError) && (
+        <div className="mt-2">
+          <ErrorNote error={add.error ?? remove.error ?? edit.error} />
+        </div>
       )}
     </Modal>
   );
