@@ -275,3 +275,76 @@ body {
     to   { opacity: 1; transform: none; }
   }
 }
+
+/* ---------------------------------------------------------------------------
+   3D logo cube - the animated brand mark on the sign-in page.
+
+   Everything derives from currentColor so the same component works on the
+   dark brand panel (light ink) and the plain page (dark ink). The cube spins
+   on a tilted axis while bobbing gently; its shadow breathes in sync.
+--------------------------------------------------------------------------- */
+.cube-wrap { display: flex; flex-direction: column; align-items: center; }
+
+.cube-scene { perspective: 640px; }
+
+.cube-float { animation: cube-bob 5s ease-in-out infinite; }
+
+.cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: cube-spin 14s linear infinite;
+}
+.cube-float,
+.cube-float .cube { width: 100%; height: 100%; }
+
+.cube-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  /* Hidden backfaces, or the monogram on the far side reads mirrored
+     through the glass. */
+  backface-visibility: hidden;
+  border: 1.5px solid color-mix(in srgb, currentColor 55%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, currentColor 14%, transparent),
+      color-mix(in srgb, currentColor 4%, transparent) 60%
+    );
+  box-shadow: inset 0 0 22px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.cube-shadow {
+  height: 10px;
+  margin-top: 18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, currentColor 30%, transparent),
+    transparent 70%
+  );
+  animation: cube-shadow 5s ease-in-out infinite;
+}
+
+@keyframes cube-spin {
+  from { transform: rotateX(-20deg) rotateY(0turn); }
+  to   { transform: rotateX(-20deg) rotateY(1turn); }
+}
+@keyframes cube-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes cube-shadow {
+  0%, 100% { transform: scaleX(1);    opacity: 0.7; }
+  50%      { transform: scaleX(0.82); opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cube, .cube-float, .cube-shadow { animation: none; }
+  .cube { transform: rotateX(-20deg) rotateY(-32deg); }
+}

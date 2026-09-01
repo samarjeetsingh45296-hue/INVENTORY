@@ -7,6 +7,7 @@ import { Eye, Pencil, UserCog, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Avatar, PageHeader, ErrorNote, TableSkeleton } from '@/components/ui';
+import { PasswordInput } from '@/components/password-input';
 
 interface Row {
   id: string;
@@ -29,6 +30,8 @@ export default function UsersPage() {
 
   const [form, setForm] = useState({ displayName: '', email: '', roleKey: 'VIEWER', password: '' });
   const [notice, setNotice] = useState<string | null>(null);
+  const [pwFor, setPwFor] = useState<Row | null>(null);
+  const [newPw, setNewPw] = useState('');
 
   const q = useQuery({ queryKey: ['users'], queryFn: () => api<Row[]>('/users') });
 
@@ -60,7 +63,12 @@ export default function UsersPage() {
       api<{ message: string }>(`/users/${vars.id}/password`, {
         method: 'POST', body: { password: vars.password },
       }),
-    onSuccess: (res) => { setNotice(res.message); refresh(); },
+    onSuccess: (res) => {
+      setNotice(res.message);
+      setPwFor(null);
+      setNewPw('');
+      refresh();
+    },
   });
 
   const removeUser = useMutation({
@@ -115,14 +123,14 @@ export default function UsersPage() {
                 <option key={r.key} value={r.key}>{r.label}</option>
               ))}
             </select>
-            <input
-              className="input max-w-[13rem]"
-              type="password"
-              placeholder="Password (min 6)"
-              autoComplete="new-password"
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-            />
+            <div className="w-full max-w-[13rem]">
+              <PasswordInput
+                placeholder="Password (min 6)"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+              />
+            </div>
             <button type="submit" className="btn-primary" disabled={!valid || create.isPending}>
               {create.isPending ? 'Adding...' : 'Add user'}
             </button>
@@ -227,11 +235,7 @@ export default function UsersPage() {
                           <button
                             className="btn-ghost"
                             disabled={resetPassword.isPending}
-                            onClick={() => {
-                              const pw = window.prompt(`New password for ${u.displayName} (min 6). They are signed out everywhere.`);
-                              if (pw && pw.length >= 6) resetPassword.mutate({ id: u.id, password: pw });
-                              else if (pw !== null) window.alert('At least 6 characters.');
-                            }}
+                            onClick={() => { setNewPw(''); setPwFor(u); }}
                           >
                             Password
                           </button>
@@ -274,6 +278,50 @@ export default function UsersPage() {
           )}
         </table>
       </div>
+
+      {pwFor && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          onClick={() => setPwFor(null)}
+        >
+          <form
+            className="card w-full max-w-xs space-y-3 p-5"
+            style={{ boxShadow: 'var(--shadow-lg)' }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newPw.length >= 6) resetPassword.mutate({ id: pwFor.id, password: newPw });
+            }}
+          >
+            <div>
+              <h3 className="text-sm font-semibold">Set a new password</h3>
+              <p className="mt-1 text-[12px] text-[rgb(var(--muted))]">
+                For {pwFor.displayName}. They are signed out everywhere and must use
+                the new password.
+              </p>
+            </div>
+            <PasswordInput
+              autoFocus
+              placeholder="New password (min 6)"
+              autoComplete="new-password"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+            />
+            <div className="flex justify-end gap-1.5">
+              <button type="button" className="btn-ghost" onClick={() => setPwFor(null)}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={newPw.length < 6 || resetPassword.isPending}
+              >
+                {resetPassword.isPending ? 'Saving...' : 'Set password'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   );
 }
