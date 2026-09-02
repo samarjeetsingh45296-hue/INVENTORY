@@ -31,7 +31,9 @@ interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1; top?: number[] 
 
 const WING: Record<string, WingCfg> = {
   '1C': { cols: 3, topParity: 1, dir: -1 },
-  '1B': { cols: 6, topParity: 0, dir: -1 },
+  // 19 sits up in the top row beside 20, not below it, so the parity rule
+  // does not hold here either.
+  '1B': { cols: 6, topParity: 0, dir: -1, top: [22, 20, 19, 18, 16, 14] },
   '1A': { cols: 6, topParity: 0, dir: -1 },
   '2C': { cols: 4, topParity: 1, dir: -1 },
   '2B': { cols: 6, topParity: 1, dir: -1 },
@@ -198,10 +200,11 @@ function CabinBox({
         })
       }
       title={`${plate?.equipment.length ?? 0} item(s) - click to view`}
-      className={`grid shrink-0 place-items-center rounded-md border border-[rgb(var(--border-hard))]
-                  bg-[rgb(var(--surface))] px-2 text-center text-[12px] font-semibold
-                  text-[rgb(var(--text))] shadow-sm transition hover:border-[rgb(var(--ring))]
-                  ${tall ? 'min-w-32 flex-1 self-stretch' : 'min-w-28 flex-1 self-stretch'}`}
+      className={`grid h-full w-full place-items-center rounded-md border
+                  border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))] px-2
+                  text-center text-[12px] font-semibold leading-tight
+                  text-[rgb(var(--text))] shadow-sm transition
+                  hover:border-[rgb(var(--ring))] ${tall ? 'min-h-24' : ''}`}
     >
       {name}
     </button>
@@ -243,15 +246,45 @@ function ZoneBlock({
   indSeat?: Seat;
   onOpen: (o: Opened) => void;
 }) {
-  const segmentRow = (seg: Segment, grow: boolean) => (
-    <div key={seg.wing} className="flex items-stretch gap-1.5">
-      {seg.cabin && (
-        <CabinBox name={seg.cabin} plate={plates.get(seg.cabin.toLowerCase())} onOpen={onOpen} />
-      )}
-      <WingStack wingKey={seg.wing} seats={seatsByWing.get(seg.wing) ?? []}
-                 grow={grow && !seg.cabin} onOpen={onOpen} />
-    </div>
+  /**
+   * Every row in a zone runs on one shared column grid, sized to the widest
+   * wing in that zone. A cabin then spans exactly the columns its wing does
+   * not use, so a short wing's seats sit squarely above the columns of the
+   * wings below instead of drifting wherever a flexing cabin left them.
+   */
+  const zoneCols = Math.max(
+    ...zone.segments.map((s) => WING[s.wing]?.cols ?? 6),
   );
+
+  const segmentRow = (seg: Segment) => {
+    const cols = WING[seg.wing]?.cols ?? 6;
+    const cabinSpan = Math.max(1, zoneCols - cols);
+    return (
+      <div
+        key={seg.wing}
+        className="grid items-stretch gap-1"
+        style={{ gridTemplateColumns: `repeat(${zoneCols}, 58px)` }}
+      >
+        {seg.cabin && (
+          <div style={{ gridColumn: `span ${cabinSpan}` }}>
+            <CabinBox
+              name={seg.cabin}
+              plate={plates.get(seg.cabin.toLowerCase())}
+              onOpen={onOpen}
+            />
+          </div>
+        )}
+        <div style={{ gridColumn: `span ${cols}` }}>
+          <WingStack
+            wingKey={seg.wing}
+            seats={seatsByWing.get(seg.wing) ?? []}
+            grow={false}
+            onOpen={onOpen}
+          />
+        </div>
+      </div>
+    );
+  };
 
   const splitCfg = zone.rightSpan
     ? WING[zone.rightSpan.splitWing] ?? { cols: 6, topParity: 1 as const, dir: 1 as const }
@@ -315,7 +348,7 @@ function ZoneBlock({
         .filter((g) =>
           !zone.rightSpan ||
           (g.wing !== zone.rightSpan.splitWing && !zone.rightSpan.wings.includes(g.wing)))
-        .map((g) => segmentRow(g, true))}
+        .map((g) => segmentRow(g))}
     </div>
   );
 }
