@@ -1,230 +1,323 @@
 'use client';
 
-import {
-  useEffect, useRef, useState,
-  type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
-import { LogoCube } from '@/components/logo-cube';
 import { PasswordInput } from '@/components/password-input';
 
 /* -------------------------------------------------------------------------
-   Embers: warm particles drifting up through the scene on one canvas.
+   The backdrop: a hazy coastal seascape painted onto a canvas, then re-read
+   and re-drawn as a dot matrix - which is what gives the reference its look
+   of a painting resolving out of a grid. It fills the whole viewport.
+
+   Both the painting and the dot layer are rendered once into offscreen
+   canvases; each frame only composites them and flickers a handful of dots,
+   so a full-screen grid stays cheap.
 ------------------------------------------------------------------------- */
-function Embers() {
+function DitheredBackdrop() {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    interface P { x: number; y: number; r: number; vx: number; vy: number; a: number; tw: number }
-    let parts: P[] = [];
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let painting: HTMLCanvasElement | null = null;
+    let dotLayer: HTMLCanvasElement | null = null;
+    let bright: Array<{ x: number; y: number; s: number }> = [];
     let raf = 0;
 
+    /** The seascape, drawn once at the canvas's size. */
+    const paint = (c: CanvasRenderingContext2D, W: number, H: number) => {
+      // Deterministic jitter, so a resize repaints the same picture.
+      let seed = 20260901;
+      const rnd = () => {
+        seed = (seed * 1664525 + 1013904223) % 4294967296;
+        return seed / 4294967296;
+      };
+
+      const HORIZON = H * 0.605;
+
+      // --- Sky: cool at the top, warming into the haze at the horizon.
+      const sky = c.createLinearGradient(0, 0, 0, HORIZON);
+      sky.addColorStop(0, '#7d95a3');
+      sky.addColorStop(0.22, '#9fadb2');
+      sky.addColorStop(0.5, '#c9c6b4');
+      sky.addColorStop(0.78, '#e8dcc2');
+      sky.addColorStop(1, '#efe4cb');
+      c.fillStyle = sky;
+      c.fillRect(0, 0, W, HORIZON + 2);
+
+      const blob = (
+        cx: number, cy: number, rx: number, ry: number, col: string, a: number,
+      ) => {
+        const g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
+        g.addColorStop(0, col.replace('$', String(a)));
+        g.addColorStop(0.55, col.replace('$', String(a * 0.42)));
+        g.addColorStop(1, col.replace('$', '0'));
+        c.fillStyle = g;
+        c.beginPath();
+        c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        c.fill();
+      };
+
+      c.filter = 'blur(3px)';
+
+      // --- Cloud mass: many overlapping puffs, warm below and cool above.
+      for (let i = 0; i < 78; i++) {
+        const cx = W * (rnd() * 1.14 - 0.07);
+        const cy = HORIZON * (0.04 + rnd() * 0.92);
+        const rx = W * (0.05 + rnd() * 0.15);
+        const ry = rx * (0.3 + rnd() * 0.34);
+        const lowInSky = cy / HORIZON;
+        const warm = rnd() < 0.35 + lowInSky * 0.5;
+        blob(cx, cy, rx, ry,
+          warm ? 'rgba(253,247,229,$)' : 'rgba(178,192,199,$)',
+          0.12 + rnd() * 0.3);
+      }
+      // Torn blue breaks high up, so the sky is not a single wash.
+      for (let i = 0; i < 12; i++) {
+        blob(W * rnd(), HORIZON * (0.04 + rnd() * 0.3),
+          W * (0.04 + rnd() * 0.1), H * (0.02 + rnd() * 0.05),
+          'rgba(104,128,145,$)', 0.14 + rnd() * 0.2);
+      }
+      // The light burning through, upper middle-right.
+      blob(W * 0.6, HORIZON * 0.52, W * 0.34, H * 0.26, 'rgba(255,248,224,$)', 0.6);
+
+      // --- Sea
+      const sea = c.createLinearGradient(0, HORIZON, 0, H);
+      sea.addColorStop(0, '#a8b0ae');
+      sea.addColorStop(0.1, '#7d8f95');
+      sea.addColorStop(0.45, '#5a707a');
+      sea.addColorStop(1, '#41565f');
+      c.fillStyle = sea;
+      c.fillRect(0, HORIZON, W, H - HORIZON);
+
+      // Swell: long low strokes, closer ones bigger and brighter.
+      c.lineCap = 'round';
+      for (let i = 0; i < 150; i++) {
+        const d = rnd();
+        const y = HORIZON + (H - HORIZON) * (d * d);
+        const depth = d;
+        const x0 = W * (rnd() * 1.1 - 0.05);
+        const len = W * (0.05 + rnd() * 0.28) * (0.4 + depth);
+        c.strokeStyle = rnd() > 0.42
+          ? `rgba(240,243,238,${0.05 + depth * 0.42})`
+          : `rgba(44,62,70,${0.05 + depth * 0.22})`;
+        c.lineWidth = 0.8 + depth * 5 + rnd() * 1.5;
+        c.beginPath();
+        c.moveTo(x0, y);
+        c.bezierCurveTo(
+          x0 + len * 0.3, y - 2 - depth * 3,
+          x0 + len * 0.7, y + 2 + depth * 3,
+          x0 + len, y,
+        );
+        c.stroke();
+      }
+      // Breaking foam, as irregular patches rather than tidy lines.
+      for (let i = 0; i < 90; i++) {
+        const d = rnd();
+        const y = HORIZON + (H - HORIZON) * (0.25 + d * d * 0.75);
+        blob(W * rnd(), y,
+          W * (0.01 + rnd() * 0.05), H * (0.004 + rnd() * 0.016),
+          'rgba(248,250,246,$)', 0.12 + d * 0.45);
+      }
+
+      // --- The castle on its headland: mid-distance, hazed by the air.
+      const by = HORIZON + H * 0.012;
+      c.fillStyle = 'rgba(120,118,104,0.85)';
+      c.beginPath();
+      c.moveTo(W * 0.46, by + H * 0.055);
+      c.quadraticCurveTo(W * 0.56, by - H * 0.012, W * 0.72, by - H * 0.004);
+      c.lineTo(W * 0.95, by + H * 0.012);
+      c.lineTo(W * 0.95, by + H * 0.07);
+      c.closePath();
+      c.fill();
+
+      const bx = W * 0.545;
+      // Curtain wall, with its own battlements
+      c.fillStyle = 'rgba(112,106,90,0.9)';
+      c.fillRect(bx, by - H * 0.09, W * 0.245, H * 0.09);
+      for (let k = 0; k < 26; k++) {
+        c.fillRect(bx + (W * 0.245 / 26) * k, by - H * 0.097, W * 0.0055, H * 0.008);
+      }
+      // Towers: a tall keep among shorter drums, each a little different, so
+      // the skyline is ragged rather than a row of equal blocks.
+      const towers: Array<[number, number, number]> = [
+        [0.0, 0.032, 0.135], [0.05, 0.026, 0.105], [0.098, 0.036, 0.185],
+        [0.152, 0.026, 0.115], [0.196, 0.03, 0.15], [0.238, 0.024, 0.1],
+      ];
+      towers.forEach(([o, wf, hf], i) => {
+        const tw = W * wf;
+        const th = H * (hf + rnd() * 0.02);
+        const v = 104 + i * 5;
+        c.fillStyle = `rgba(${v},${v - 6},${v - 24},0.92)`;
+        c.fillRect(bx + W * o, by - th, tw, th);
+        // Battlements
+        for (let k = 0; k < 4; k++) {
+          c.fillRect(bx + W * o + (tw / 4) * k, by - th - H * 0.009, tw / 7, H * 0.009);
+        }
+        // Shadowed side, so each tower reads as round
+        c.fillStyle = 'rgba(58,54,44,0.3)';
+        c.fillRect(bx + W * o + tw * 0.62, by - th, tw * 0.38, th);
+        // Window slits
+        c.fillStyle = 'rgba(46,42,34,0.75)';
+        for (let k = 0; k < 3; k++) {
+          c.fillRect(bx + W * o + tw * 0.34, by - th * (0.8 - k * 0.22), tw * 0.13, th * 0.07);
+        }
+      });
+      // Atmospheric haze laid back over the distance.
+      const haze = c.createLinearGradient(0, by - H * 0.2, 0, by + H * 0.08);
+      haze.addColorStop(0, 'rgba(233,224,203,0.34)');
+      haze.addColorStop(1, 'rgba(233,224,203,0.06)');
+      c.fillStyle = haze;
+      c.fillRect(W * 0.36, by - H * 0.2, W * 0.64, H * 0.28);
+
+      // --- Foreground: dark rocky shore sweeping in from the left.
+      c.fillStyle = '#3c4038';
+      c.beginPath();
+      c.moveTo(0, H * 0.52);
+      c.quadraticCurveTo(W * 0.06, H * 0.47, W * 0.12, H * 0.6);
+      c.quadraticCurveTo(W * 0.17, H * 0.72, W * 0.16, H * 0.84);
+      c.quadraticCurveTo(W * 0.15, H * 0.95, W * 0.22, H);
+      c.lineTo(0, H);
+      c.closePath();
+      c.fill();
+      for (let i = 0; i < 120; i++) {
+        const t = rnd();
+        const rx = W * (0.005 + t * t * 0.42);
+        const ry = H * (0.72 + rnd() * 0.3);
+        const s = W * (0.004 + rnd() * 0.02);
+        const v = 26 + rnd() * 30;
+        c.fillStyle = `rgba(${v},${v + 4},${v + 1},${0.4 + rnd() * 0.5})`;
+        c.beginPath();
+        c.ellipse(rx, ry, s, s * (0.45 + rnd() * 0.4), rnd() * 3, 0, Math.PI * 2);
+        c.fill();
+      }
+
+      // Wet sand catching the light between rocks and water.
+      c.fillStyle = 'rgba(206,196,170,0.42)';
+      c.beginPath();
+      c.moveTo(W * 0.1, H);
+      c.quadraticCurveTo(W * 0.3, H * 0.83, W * 0.55, H * 0.795);
+      c.lineTo(W * 0.62, H);
+      c.closePath();
+      c.fill();
+
+      // The bare tree leaning off the headland.
+      c.strokeStyle = 'rgba(26,30,27,0.95)';
+      c.lineWidth = Math.max(2, W * 0.0022);
+      const tx = W * 0.075;
+      const ty = H * 0.52;
+      c.beginPath();
+      c.moveTo(tx, ty);
+      c.lineTo(tx + W * 0.014, ty - H * 0.1);
+      c.stroke();
+      const fork = [tx + W * 0.014, ty - H * 0.1] as const;
+      for (const [dx, dy] of [[0.03, -0.045], [-0.016, -0.05], [0.04, -0.012]] as const) {
+        c.beginPath();
+        c.moveTo(fork[0], fork[1]);
+        c.lineTo(fork[0] + W * dx, fork[1] + H * dy);
+        c.stroke();
+      }
+
+      c.filter = 'none';
+
+      // --- Grain, so flat regions still carry paint texture.
+      for (let i = 0; i < W * H * 0.005; i++) {
+        const x = rnd() * W;
+        const y = rnd() * H;
+        c.fillStyle = rnd() > 0.5
+          ? `rgba(255,252,240,${0.02 + rnd() * 0.06})`
+          : `rgba(24,28,30,${0.02 + rnd() * 0.06})`;
+        c.fillRect(x, y, 1.3, 1.3);
+      }
+    };
+
+    /** Read the painting on a grid and bake the dot matrix into a layer. */
+    const buildDots = (W: number, H: number) => {
+      if (!painting) return;
+      const pc = painting.getContext('2d');
+      if (!pc) return;
+      const data = pc.getImageData(0, 0, W, H).data;
+
+      dotLayer = document.createElement('canvas');
+      dotLayer.width = W;
+      dotLayer.height = H;
+      const dc = dotLayer.getContext('2d');
+      if (!dc) return;
+
+      const STEP = 12;
+      const next: typeof bright = [];
+      for (let y = STEP; y < H - 3; y += STEP) {
+        for (let x = STEP; x < W - 3; x += STEP) {
+          const i = (y * W + x) * 4;
+          const r = data[i] ?? 0, g = data[i + 1] ?? 0, b = data[i + 2] ?? 0;
+          const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          const light = lum > 0.52;
+          // Size tracks distance from mid-grey, so highlights and shadows
+          // punch while mid-tones stay quiet.
+          const contrast = Math.min(1, Math.abs(lum - 0.52) * 2.6);
+          const s = 1.4 + contrast * 1.5;
+          dc.globalAlpha = light ? 0.5 + contrast * 0.45 : 0.32 + contrast * 0.4;
+          dc.fillStyle = light ? '#ffffff' : '#0d1216';
+          dc.fillRect(x, y, s, s);
+          if (light && contrast > 0.45) next.push({ x, y, s });
+        }
+      }
+      dc.globalAlpha = 1;
+      // Only the brightest dots twinkle - enough to feel alive, few enough
+      // to stay free.
+      bright = next.filter((_, i) => i % 3 === 0);
+    };
+
     const resize = () => {
-      const box = canvas.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.floor(box.width));
-      canvas.height = Math.max(1, Math.floor(box.height));
-      const n = Math.floor((canvas.width * canvas.height) / 4500);
-      parts = Array.from({ length: n }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: 0.6 + Math.random() * 1.8,
-        vx: (Math.random() - 0.5) * 0.16,
-        vy: -(0.08 + Math.random() * 0.35),
-        a: 0.15 + Math.random() * 0.5,
-        tw: Math.random() * Math.PI * 2,
-      }));
+      const W = Math.max(1, Math.round(canvas.clientWidth));
+      const H = Math.max(1, Math.round(canvas.clientHeight));
+      // Skip only when this run has already painted at this size. Testing
+      // the canvas alone is wrong: it keeps its size across a remount while
+      // the offscreen layers start out null.
+      if (painting && canvas.width === W && canvas.height === H) return;
+      canvas.width = W;
+      canvas.height = H;
+      painting = document.createElement('canvas');
+      painting.width = W;
+      painting.height = H;
+      const pc = painting.getContext('2d');
+      if (pc) paint(pc, W, H);
+      buildDots(W, H);
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const tick = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const p of parts) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.tw += 0.03;
-        if (p.y < -4) { p.y = canvas.height + 4; p.x = Math.random() * canvas.width; }
-        if (p.x < -4) p.x = canvas.width + 4;
-        if (p.x > canvas.width + 4) p.x = -4;
-        const glow = p.a * (0.65 + 0.35 * Math.sin(p.tw));
-        ctx.globalAlpha = glow;
-        ctx.fillStyle = p.r > 1.6 ? '#ffc09a' : '#ff8a5c';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
+    const render = (time: number) => {
+      if (painting) ctx.drawImage(painting, 0, 0);
+      if (dotLayer) ctx.drawImage(dotLayer, 0, 0);
+      if (!still) {
+        const t = time / 1000;
+        for (let i = 0; i < bright.length; i++) {
+          const d = bright[i];
+          if (!d) continue;
+          ctx.globalAlpha = 0.25 * (0.5 + 0.5 * Math.sin(t * 1.7 + i * 0.7));
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(d.x, d.y, d.s, d.s);
+        }
+        ctx.globalAlpha = 1;
+        raf = requestAnimationFrame(render);
       }
-      ctx.globalAlpha = 1;
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+    raf = requestAnimationFrame(render);
 
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
-  return <canvas ref={ref} className="absolute inset-0 h-full w-full" aria-hidden />;
+  return <canvas ref={ref} className="absolute inset-0 block h-full w-full" aria-hidden />;
 }
 
-/* -------------------------------------------------------------------------
-   The terminal's screen: a live inventory command center in miniature.
-------------------------------------------------------------------------- */
-function TerminalScreen() {
-  const [stock, setStock] = useState(1851);
-  const [moves, setMoves] = useState(214);
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setStock((s) => s + (Math.random() < 0.6 ? 1 : 2));
-      setMoves((s) => s + (Math.random() < 0.35 ? 1 : 0));
-    }, 1500);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="lux-screen p-3 text-[#f3ded2]">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-[8px] font-bold uppercase tracking-[0.28em] text-[#ff9a68]">
-          Inventory Command
-        </p>
-        <span className="flex items-center gap-1 text-[7px] font-bold uppercase tracking-widest text-[#5eea8a]">
-          <span className="lux-live-dot h-1.5 w-1.5 rounded-full bg-[#5eea8a]" /> Live
-        </span>
-      </div>
-
-      {/* KPIs */}
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        {[
-          { k: 'Stock', v: stock.toLocaleString() },
-          { k: 'Moves', v: moves.toLocaleString() },
-          { k: 'Health', v: '98%' },
-        ].map((x) => (
-          <div key={x.k} className="rounded-md border border-[rgb(255_255_255/0.08)] bg-[rgb(255_255_255/0.04)] px-1.5 py-1">
-            <p className="text-[6px] uppercase tracking-[0.18em] text-[rgb(243_222_210/0.5)]">{x.k}</p>
-            <p className="text-[11px] font-bold tabular-nums text-[#ffd9c0]">{x.v}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Trend + shipment route */}
-      <svg viewBox="0 0 200 54" className="mt-2 w-full">
-        <polyline
-          className="lux-chart-line"
-          points="4,44 28,38 52,40 76,28 100,31 124,20 148,24 172,12 196,16"
-          fill="none" stroke="#ff8a5c" strokeWidth="2" strokeLinecap="round"
-        />
-        <line className="lux-route" x1="8" y1="50" x2="192" y2="50" stroke="#c0392b" strokeWidth="1.6" />
-        {[8, 70, 132, 192].map((x) => (
-          <circle key={x} cx={x} cy="50" r="2.2" fill="#ffb185" />
-        ))}
-      </svg>
-
-      {/* Warehouse bars */}
-      <div className="mt-1.5 flex h-9 items-end gap-1">
-        {[0.9, 0.55, 0.75, 0.4, 0.85, 0.6, 0.7, 0.5, 0.95, 0.65].map((h, i) => (
-          <div
-            key={i}
-            className="lux-bar flex-1 rounded-sm"
-            style={{
-              height: `${h * 100}%`,
-              animationDelay: `${i * 0.24}s`,
-              background: 'linear-gradient(to top, #8b1e1e, #ff6b35)',
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="lux-scanlines" />
-      <div className="lux-screen-glow" />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   The full right-hand scene.
-------------------------------------------------------------------------- */
-function Scene() {
-  const wrap = useRef<HTMLDivElement | null>(null);
-  const pending = useRef(false);
-
-  // Parallax: the terminal leans gently toward the pointer.
-  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const el = wrap.current;
-    if (!el || pending.current) return;
-    pending.current = true;
-    const box = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const px = (e.clientX - box.left) / box.width - 0.5;
-    const py = (e.clientY - box.top) / box.height - 0.5;
-    requestAnimationFrame(() => {
-      el.style.transform = `translate3d(${px * 18}px, ${py * 12}px, 0)`;
-      pending.current = false;
-    });
-  };
-
-  return (
-    <div
-      className="lux-scene lux-scene-on relative hidden overflow-hidden lg:block"
-      onPointerMove={onMove}
-      onPointerLeave={() => { if (wrap.current) wrap.current.style.transform = ''; }}
-    >
-      {/* Energy waves */}
-      <div className="lux-wave" style={{ top: '8%', left: '4%', width: '58%', height: '38%',
-        background: 'radial-gradient(circle, rgb(192 57 43 / 0.4), transparent 70%)', animationDuration: '13s' }} />
-      <div className="lux-wave" style={{ top: '34%', right: '-6%', width: '52%', height: '42%',
-        background: 'radial-gradient(circle, rgb(255 107 53 / 0.32), transparent 70%)', animationDuration: '17s', animationDelay: '-6s' }} />
-      <div className="lux-wave" style={{ bottom: '2%', left: '18%', width: '64%', height: '36%',
-        background: 'radial-gradient(circle, rgb(139 30 30 / 0.5), transparent 70%)', animationDuration: '21s', animationDelay: '-11s' }} />
-
-      <div className="lux-rays" />
-      <div className="lux-flare" style={{ top: '6%', right: '12%', width: 220, height: 220 }} />
-      <div className="lux-fog" style={{ bottom: '14%', left: '-8%', width: '70%', height: '30%', animationDuration: '19s' }} />
-      <div className="lux-fog" style={{ bottom: '4%', right: '-10%', width: '60%', height: '26%', animationDuration: '26s', animationDelay: '-9s' }} />
-      <div className="lux-field-glow" />
-
-      {/* The floating terminal */}
-      <div className="lux-rise absolute inset-0 grid place-items-center">
-        <div ref={wrap} className="lux-term-wrap">
-          <div className="lux-term w-[340px] xl:w-[400px]">
-            <div className="lux-monitor p-3.5">
-              <TerminalScreen />
-              <div className="mt-2 flex items-center justify-between px-1">
-                <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#ff6b35]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-[rgb(255_255_255/0.25)]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-[rgb(255_255_255/0.25)]" />
-                </div>
-                <p className="text-[7px] font-bold uppercase tracking-[0.3em] text-[rgb(255_255_255/0.35)]">
-                  IS-9000
-                </p>
-              </div>
-            </div>
-            {/* Stand */}
-            <div className="mx-auto h-9 w-16 bg-gradient-to-b from-[#1a1a1e] to-[#0a0a0c]"
-                 style={{ clipPath: 'polygon(28% 0, 72% 0, 100% 100%, 0 100%)' }} />
-            <div className="mx-auto h-1.5 w-40 rounded-full bg-gradient-to-b from-[#212126] to-[#0a0a0c]" />
-            {/* Ground glow */}
-            <div className="mx-auto mt-3 h-4 w-64 rounded-[50%] bg-[rgb(255_107_53/0.3)] blur-xl" />
-          </div>
-        </div>
-      </div>
-
-      <Embers />
-      <div className="lux-grain" />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   The page.
-------------------------------------------------------------------------- */
 export default function LoginPage() {
   const { login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
@@ -259,154 +352,123 @@ export default function LoginPage() {
     }
   }
 
-  // Click ripple on the sign-in button.
-  const ripple = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    const btn = e.currentTarget;
-    const box = btn.getBoundingClientRect();
-    const span = document.createElement('span');
-    const size = Math.max(box.width, box.height);
-    span.className = 'lux-ripple';
-    span.style.width = span.style.height = `${size}px`;
-    span.style.left = `${e.clientX - box.left - size / 2}px`;
-    span.style.top = `${e.clientY - box.top - size / 2}px`;
-    btn.appendChild(span);
-    setTimeout(() => span.remove(), 650);
-  };
-
   return (
-    <main className="lux-page grid min-h-screen place-items-center p-3 md:p-6">
-      <div className="lux-frame grid min-h-[min(92vh,860px)] w-full max-w-[1280px]
-                      grid-cols-1 lg:grid-cols-[2fr_3fr]">
-        <div className="lux-veil" />
+    <main className="wf-page relative min-h-screen w-full overflow-hidden">
+      <DitheredBackdrop />
 
-        {/* Left: glass panel */}
-        <section className="lux-left lux-enter-panel relative flex flex-col p-7 md:p-9">
-          <div className="lux-up flex items-center gap-2.5" style={{ animationDelay: '0.8s' }}>
-            <div style={{ color: '#f5f2ef' }}><LogoCube size={30} /></div>
-            <span className="text-[13px] font-semibold tracking-tight text-[#f5f2ef]">
-              {process.env.NEXT_PUBLIC_APP_NAME ?? 'Inventory Suite'}
-            </span>
+      {/* The card floats at the centre of the artwork */}
+      <div className="relative grid min-h-screen place-items-center p-4">
+        <div className="wf-card w-full max-w-[336px] p-6 text-[#f4f4f2]">
+          <div className="flex flex-col items-center text-center">
+            <div className="wf-logo wf-in" style={{ animationDelay: '0.45s' }}>IS</div>
+            <h1 className="wf-in mt-3.5 text-[19px] font-semibold tracking-tight"
+                style={{ animationDelay: '0.53s' }}>
+              Welcome to {process.env.NEXT_PUBLIC_APP_NAME ?? 'Inventory Suite'}
+            </h1>
+            <p className="wf-in mt-1 text-[12px] text-[rgb(244_244_242/0.5)]"
+               style={{ animationDelay: '0.59s' }}>
+              Every asset, every holder, one record.
+            </p>
           </div>
 
-          <div className="flex flex-1 flex-col justify-center py-8">
-            <div className="lux-up" style={{ animationDelay: '0.95s' }}>
-              <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-[#f5f2ef]">
-                Command your
-                <span className="bg-gradient-to-r from-[#ff9a68] to-[#ff6b35] bg-clip-text text-transparent"> inventory</span>.
-              </h1>
-              <p className="mt-2 text-[13px] leading-relaxed text-[rgb(245_242_239/0.55)]">
-                Every asset, every holder, one record - the Central Contact
-                Center&apos;s command center for equipment that never loses history.
-              </p>
-            </div>
-
-            <form onSubmit={onSubmit} className="mt-7 space-y-4">
-              {step === 'enrol' ? (
-                <div className="lux-up space-y-3" style={{ animationDelay: '1.1s' }}>
-                  <h2 className="text-sm font-semibold text-[#f5f2ef]">
-                    Set up two-factor authentication
-                  </h2>
-                  <p className="text-[12px] text-[rgb(245_242_239/0.6)]">
-                    {enrolmentNotice ??
-                      'Your role requires a second factor before you can sign in.'}
-                  </p>
-                  <p className="text-[12px] text-[rgb(245_242_239/0.6)]">
-                    The enrolment screen is not built yet. For now an administrator
-                    can complete this from the API, or clear MFA_REQUIRED_ROLES in
-                    the environment to sign in with a password alone.
-                  </p>
-                  <button
-                    type="button"
-                    className="w-full rounded-full border border-[rgb(255_255_255/0.2)] py-2
-                               text-[13px] font-medium text-[#f5f2ef] transition
-                               hover:bg-[rgb(255_255_255/0.08)]"
-                    onClick={() => setStep('credentials')}
-                  >
-                    Back to sign in
-                  </button>
-                </div>
-              ) : step === 'credentials' ? (
-                <>
-                  <div className="lux-field lux-up" data-filled={email !== ''}
-                       style={{ animationDelay: '1.1s' }}>
+          <form onSubmit={onSubmit} className="mt-5 space-y-2.5">
+            {step === 'enrol' ? (
+              <div className="wf-in space-y-3" style={{ animationDelay: '0.65s' }}>
+                <h2 className="text-[13px] font-semibold">
+                  Set up two-factor authentication
+                </h2>
+                <p className="text-[12px] leading-relaxed text-[rgb(244_244_242/0.55)]">
+                  {enrolmentNotice ??
+                    'Your role requires a second factor before you can sign in.'}
+                </p>
+                <p className="text-[12px] leading-relaxed text-[rgb(244_244_242/0.55)]">
+                  The enrolment screen is not built yet. For now an administrator
+                  can complete this from the API, or clear MFA_REQUIRED_ROLES in
+                  the environment to sign in with a password alone.
+                </p>
+                <button type="button" className="wf-btn" onClick={() => setStep('credentials')}>
+                  Back to sign in
+                </button>
+              </div>
+            ) : step === 'credentials' ? (
+              <>
+                <div className="wf-field wf-in" style={{ animationDelay: '0.65s' }}>
+                  <div className="wf-inner">
                     <input
                       id="email"
                       type="email"
                       className="input"
                       autoComplete="username"
+                      placeholder="Email address"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
-                    <label className="lux-label" htmlFor="email">Email address</label>
                   </div>
-                  <div className="lux-field lux-up" data-filled={password !== ''}
-                       style={{ animationDelay: '1.25s' }}>
+                </div>
+                <div className="wf-field wf-in" style={{ animationDelay: '0.73s' }}>
+                  <div className="wf-inner">
                     <PasswordInput
                       id="password"
                       autoComplete="current-password"
+                      placeholder="Password"
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
-                    <label className="lux-label" htmlFor="password">Password</label>
                   </div>
-                  <div className="lux-up pt-1" style={{ animationDelay: '1.4s' }}>
-                    <button type="submit" className="lux-btn" disabled={busy} onClick={ripple}>
-                      {busy ? 'Please wait...' : 'Sign in'}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="lux-field lux-up" data-filled={code !== ''}
-                       style={{ animationDelay: '0.1s' }}>
+                </div>
+                <div className="wf-in pt-1.5" style={{ animationDelay: '0.81s' }}>
+                  <button type="submit" className="wf-btn" disabled={busy}>
+                    {busy ? 'Please wait...' : 'Sign in'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="wf-field">
+                  <div className="wf-inner">
                     <input
                       id="code"
                       inputMode="numeric"
-                      className="input text-center text-lg tracking-[0.4em]"
+                      className="input text-center tracking-[0.4em]"
                       autoComplete="one-time-code"
+                      placeholder="000000"
                       required
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                     />
-                    <label className="lux-label" htmlFor="code">Authentication code</label>
                   </div>
-                  <p className="text-xs text-[rgb(245_242_239/0.5)]">
-                    Enter the 6-digit code from your authenticator app, or one of
-                    your recovery codes.
-                  </p>
-                  <button type="submit" className="lux-btn" disabled={busy} onClick={ripple}>
-                    {busy ? 'Please wait...' : 'Verify'}
-                  </button>
-                </>
-              )}
-
-              {error && (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-[rgb(255_107_53/0.3)] px-3 py-2
-                             text-[12px] text-[#ffb4a2]"
-                  style={{ background: 'rgb(127 29 29 / 0.3)' }}
-                >
-                  {error}
+                </div>
+                <p className="pt-0.5 text-[11px] leading-relaxed text-[rgb(244_244_242/0.5)]">
+                  Enter the 6-digit code from your authenticator app, or one of
+                  your recovery codes.
                 </p>
-              )}
-            </form>
-          </div>
+                <button type="submit" className="wf-btn" disabled={busy}>
+                  {busy ? 'Please wait...' : 'Verify'}
+                </button>
+              </>
+            )}
 
-          <p className="lux-up text-[11px] text-[rgb(245_242_239/0.4)]"
-             style={{ animationDelay: '1.55s' }}>
-            Access is created by an administrator. No account? Ask your admin.
-            <span className="mt-1 block text-[10px] uppercase tracking-[0.25em] text-[rgb(245_242_239/0.3)]">
-              Central Contact Center - Parul University
-            </span>
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl px-3 py-2 text-[12px] leading-relaxed text-[#ffb4a2]"
+                style={{ background: 'rgb(127 29 29 / 0.35)' }}
+              >
+                {error}
+              </p>
+            )}
+          </form>
+
+          <p className="wf-in mt-4 text-center text-[11.5px] text-[rgb(244_244_242/0.45)]"
+             style={{ animationDelay: '0.89s' }}>
+            No account? <span className="wf-link">Ask your administrator</span>
           </p>
-        </section>
-
-        {/* Right: the cinematic scene */}
-        <Scene />
+        </div>
       </div>
+
+      <p className="wf-caption">Central Contact Center - Parul University</p>
     </main>
   );
 }
