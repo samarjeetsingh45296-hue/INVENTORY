@@ -352,17 +352,27 @@ body {
 /* ---------------------------------------------------------------------------
    Sign-in.
 
-   A full-bleed painted seascape rendered as a dot matrix, with a dark glass
-   card floating at the centre. Everything here is scoped to .wf-page, so no
-   other screen is affected.
---------------------------------------------------------------------------- */
-.wf-page {
-  background: #8e9ea4;
-  animation: wf-fade 1s ease both;
-}
-@keyframes wf-fade { from { opacity: 0; } }
+   Full-bleed seascape with a dark glass card floating at the centre.
+   Geometry, colour and timing are measured from the reference recording:
+   the card is ~29% of the artwork's width, its fill composites to about
+   rgb(37,35,32), and it fades in over ~0.32s while easing from a 1.015
+   scale down to 1 - the whole card as one unit, not element by element.
 
-/* Caption sitting on the artwork, bottom centre */
+   Everything is scoped to .wf-page, so no other screen is affected.
+--------------------------------------------------------------------------- */
+.wf-page { background: #899390; }
+
+.wf-art {
+  position: absolute;
+  inset: 0;
+  background-image: url('/login-scene.jpg');
+  background-size: cover;
+  background-position: center;
+  animation: wf-art-in 1.1s ease both;
+}
+@keyframes wf-art-in { from { opacity: 0; } }
+
+/* Caption on the artwork, bottom centre */
 .wf-caption {
   position: absolute;
   inset: auto 0 14px 0;
@@ -372,51 +382,48 @@ body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgb(255 255 255 / 0.5);
-  text-shadow: 0 1px 6px rgb(0 0 0 / 0.45);
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
 }
 
 /* ------------------------------------------------------------------ card */
 .wf-card {
-  background: rgb(12 12 14 / 0.84);
-  backdrop-filter: blur(22px);
-  border: 1px solid rgb(255 255 255 / 0.09);
-  border-radius: 26px;
+  background: rgb(14 12 9 / 0.86);
+  backdrop-filter: blur(26px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 30px;
   box-shadow:
-    0 30px 80px -24px rgb(0 0 0 / 0.75),
-    inset 0 1px 0 rgb(255 255 255 / 0.07);
-  animation: wf-card-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.25s both;
+    0 34px 90px -26px rgb(0 0 0 / 0.8),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  animation: wf-card-in 0.42s cubic-bezier(0.22, 0.68, 0.24, 1) 0.16s both;
 }
 @keyframes wf-card-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  from { opacity: 0; transform: scale(1.015); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .wf-logo {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
+  width: 54px;
+  height: 54px;
+  border-radius: 17px;
   background: #fafaf9;
   color: #0c0c0e;
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: -0.02em;
   box-shadow: 0 6px 18px -6px rgb(0 0 0 / 0.6);
 }
 
-/* Staggered reveal for the card's contents */
-.wf-in { animation: wf-up 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-@keyframes wf-up { from { opacity: 0; transform: translateY(8px); } }
-
 /* ----------------------------------------------------------------- field */
-/* A 1.5px gradient ring that only appears on focus - the iridescent border
-   from the reference. The conic layer is oversized and rotates behind the
-   inner surface, so the ring itself appears to flow. */
+/* A 1.5px gradient ring that appears on focus - the iridescent border from
+   the reference. The conic layer is oversized and rotates behind the inner
+   surface, so the ring itself appears to flow. */
 .wf-field {
   position: relative;
   padding: 1.5px;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.10);
+  border-radius: 15px;
+  background: rgb(255 255 255 / 0.11);
   overflow: hidden;
 }
 .wf-field::before {
@@ -434,44 +441,49 @@ body {
   animation: wf-spin 7s linear infinite;
 }
 @keyframes wf-spin { to { rotate: 360deg; } }
-.wf-field:hover { background: rgb(255 255 255 / 0.16); }
+.wf-field:hover { background: rgb(255 255 255 / 0.17); }
 .wf-field:focus-within::before { opacity: 1; }
 
 .wf-inner {
   position: relative;
   z-index: 1;
-  border-radius: 12.5px;
-  background: #0e0e11;
+  border-radius: 13.5px;
+  background: #131110;
 }
 
 /* The shared .input, recommitted to the card's dark look. Right padding
    leaves room for the reveal button. */
 .wf-page .input {
-  height: 46px;
-  padding: 0 40px 0 15px;
+  height: 50px;
+  padding: 0 44px 0 17px;
   border: 0;
-  border-radius: 12.5px;
+  border-radius: 13.5px;
   background: transparent;
   box-shadow: none;
-  font-size: 13.5px;
-  color: #f4f4f2;
+  font-size: 14px;
+  color: #f4f2ef;
 }
-.wf-page .input::placeholder { color: rgb(244 244 242 / 0.38); }
+.wf-page .input::placeholder { color: rgb(244 242 239 / 0.36); }
 .wf-page .input:focus { box-shadow: none; }
-.wf-page .input ~ button { color: rgb(244 244 242 / 0.42); }
+.wf-page .input ~ button {
+  right: 8px;
+  height: 26px;
+  width: 26px;
+  color: rgb(244 242 239 / 0.45);
+}
 .wf-page .input ~ button:hover {
   background: rgb(255 255 255 / 0.10);
-  color: #f4f4f2;
+  color: #f4f2ef;
 }
 
 /* ---------------------------------------------------------------- button */
 .wf-btn {
   width: 100%;
-  height: 44px;
+  height: 50px;
   border-radius: 999px;
   background: #fafaf9;
   color: #0c0c0e;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 600;
   box-shadow: 0 8px 22px -10px rgb(0 0 0 / 0.7);
   transition: transform 0.14s ease, box-shadow 0.2s ease, background 0.2s ease;
@@ -479,13 +491,13 @@ body {
 .wf-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   background: #fff;
-  box-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.75);
+  box-shadow: 0 14px 32px -10px rgb(0 0 0 / 0.75);
 }
 .wf-btn:active:not(:disabled) { transform: scale(0.985); }
 .wf-btn:disabled { opacity: 0.5; }
 
 .wf-link {
-  color: #f4f4f2;
+  color: #f4f2ef;
   font-weight: 600;
   text-underline-offset: 3px;
 }
