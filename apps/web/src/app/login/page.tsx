@@ -240,7 +240,7 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center py-10">
           {/* Keyed on step so each stack replays its stagger from the top. */}
-          <div key={step} className="si-stack w-full max-w-[400px]" data-leaving={leaving}>
+          <div key={step} className="si-stack w-full max-w-[440px]" data-leaving={leaving}>
             {step === 'credentials' && (
               <>
                 <Rise d={0}>
@@ -296,17 +296,12 @@ export default function LoginPage() {
                     onClick={withGoogle}
                     disabled={busy}
                   >
+                    <span className="si-shine" aria-hidden />
                     <GoogleMark />
                     Continue with Google
                   </button>
                 </Rise>
 
-                <Rise d={0.3} className="mt-8">
-                  <p className="text-center text-[13.5px] text-[#8e8e93]">
-                    Don&apos;t have an account?{' '}
-                    <span className="si-link">Ask your administrator</span>
-                  </p>
-                </Rise>
               </>
             )}
 
