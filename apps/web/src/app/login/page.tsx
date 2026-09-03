@@ -111,6 +111,14 @@ export default function LoginPage() {
 
   const [step, setStep] = useState<Step>('credentials');
   const [leaving, setLeaving] = useState(false);
+  // The cascade is armed one frame after mount rather than on first paint,
+  // so it always plays in front of the user instead of finishing while the
+  // page is still loading in.
+  const [play, setPlay] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPlay(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agree, setAgree] = useState(false);
@@ -160,14 +168,14 @@ export default function LoginPage() {
     setNotice(`${name} sign-in is not connected yet. Use your email and password, or ask your administrator to enable it.`);
 
   return (
-    <main className="si-page grid min-h-screen lg:grid-cols-2">
+    <main className={`si-page grid min-h-screen lg:grid-cols-2 ${play ? 'si-play' : ''}`}>
       {/* ------------------------------------------------------ left: form */}
       <section className="flex min-h-screen flex-col px-6 py-8 sm:px-12 sm:py-10">
         <Rise d={0}>
           <div className="si-brand">{APP}<span>.</span></div>
         </Rise>
 
-        <div className="flex flex-1 items-center py-10">
+        <div className="flex flex-1 items-center justify-center py-10">
           {/* Keyed on step so each stack replays its stagger from the top. */}
           <div key={step} className="si-stack w-full max-w-[400px]" data-leaving={leaving}>
             {step === 'credentials' && (
@@ -318,7 +326,7 @@ export default function LoginPage() {
         </div>
 
         <Rise d={0.42}>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-[#5c5c60]">
+          <p className="text-center text-[11px] uppercase tracking-[0.22em] text-[#5c5c60]">
             Central Contact Center - Parul University
           </p>
         </Rise>

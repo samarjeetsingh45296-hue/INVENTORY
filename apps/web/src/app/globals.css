@@ -286,8 +286,10 @@ body {
 .si-page { background: #0b0b0c; color: #ffffff; }
 
 /* ---------------------------------------------------------------- motion */
-.si-in {
-  opacity: 0;
+/* Items wait invisible until the page arms the cascade (.si-play), then
+   each rises 12px and fades in over 0.45s, 60ms after the one above it. */
+.si-in { opacity: 0; }
+.si-play .si-in {
   animation: si-rise 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
   animation-delay: var(--d, 0s);
 }
@@ -319,6 +321,14 @@ body {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .si-page .input::placeholder { color: #8e8e93; }
+.si-page .input:-webkit-autofill,
+.si-page .input:-webkit-autofill:hover,
+.si-page .input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #141416 inset;
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-out 0s;
+}
 .si-page .input:hover { border-color: #3a3a3e; }
 .si-page .input:focus {
   border-color: #ff2e2e;
