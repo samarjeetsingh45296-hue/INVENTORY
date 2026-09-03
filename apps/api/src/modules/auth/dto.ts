@@ -34,3 +34,9 @@ export class MfaConfirmDto {
   @IsString() @IsNotEmpty()
   code!: string;
 }
+
+export class GoogleLoginDto {
+  /** Access token from Google Identity Services' token client. */
+  @IsString() @IsNotEmpty()
+  accessToken!: string;
+}

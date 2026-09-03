@@ -24,6 +24,8 @@ interface AuthState {
   /** Set when the account must enrol a second factor before it can sign in. */
   enrolmentNotice: string | null;
   verifyMfa: (code: string) => Promise<void>;
+  /** Same outcomes as login(), but from a Google access token. */
+  loginWithGoogle: (accessToken: string) => Promise<'OK' | 'MFA_REQUIRED' | 'MFA_ENROLMENT_REQUIRED'>;
   logout: () => Promise<void>;
   can: (...permissions: string[]) => boolean;
   canAny: (...permissions: string[]) => boolean;
@@ -61,11 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api<any>('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    });
+  /** Turn a login response into session state; shared by both sign-in paths. */
+  const settle = useCallback(async (res: any) => {
 
     if (res.status === 'MFA_REQUIRED') {
       setChallengeToken(res.challengeToken);
@@ -86,6 +85,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api<Principal>('/auth/me'));
     return 'OK' as const;
   }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) =>
+      settle(await api<any>('/auth/login', { method: 'POST', body: { email, password } })),
+    [settle],
+  );
+
+  const loginWithGoogle = useCallback(
+    async (accessToken: string) =>
+      settle(await api<any>('/auth/google', { method: 'POST', body: { accessToken } })),
+    [settle],
+  );
 
   const verifyMfa = useCallback(
     async (code: string) => {
@@ -117,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       login,
+      loginWithGoogle,
       verifyMfa,
       logout,
       enrolmentNotice,
@@ -125,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canAny: (...permissions) =>
         !!user && permissions.some((p) => user.permissions.includes(p)),
     }),
-    [user, loading, login, verifyMfa, logout, enrolmentNotice],
+    [user, loading, login, loginWithGoogle, verifyMfa, logout, enrolmentNotice],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

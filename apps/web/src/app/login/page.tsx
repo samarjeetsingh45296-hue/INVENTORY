@@ -11,6 +11,59 @@ type Step = 'credentials' | 'mfa' | 'enrol';
 // The sign-in page carries the product name the user chose for it; the
 // env app name still drives the tab title and the rest of the app.
 const APP = 'Inventory Manager';
+const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '').trim();
+
+/* -------------------------------------------------------------------------
+   Google Identity Services. The script is loaded on first use, then a token
+   client opens Google's own sign-in window and hands back an access token,
+   which the API verifies with Google before matching it to an account.
+------------------------------------------------------------------------- */
+interface GoogleTokenClient { requestAccessToken: (o?: { prompt?: string }) => void }
+interface GoogleAccounts {
+  oauth2: {
+    initTokenClient: (cfg: {
+      client_id: string;
+      scope: string;
+      callback: (r: { access_token?: string; error?: string; error_description?: string }) => void;
+      error_callback?: (e: { type?: string; message?: string }) => void;
+    }) => GoogleTokenClient;
+  };
+}
+declare global { interface Window { google?: { accounts: GoogleAccounts } } }
+
+let gisLoading: Promise<void> | null = null;
+function loadGis(): Promise<void> {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (!gisLoading) {
+    gisLoading = new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = 'https://accounts.google.com/gsi/client';
+      el.async = true;
+      el.onload = () => resolve();
+      el.onerror = () => { gisLoading = null; reject(new Error('Could not load Google sign-in.')); };
+      document.head.append(el);
+    });
+  }
+  return gisLoading;
+}
+
+/** Opens Google's sign-in window and resolves with an access token. */
+async function requestGoogleToken(): Promise<string> {
+  await loadGis();
+  return new Promise((resolve, reject) => {
+    const client = window.google!.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'openid email profile',
+      callback: (r) => {
+        if (r.access_token) resolve(r.access_token);
+        else reject(new Error(r.error_description || r.error || 'Google sign-in was cancelled.'));
+      },
+      error_callback: (e) =>
+        reject(new Error(e.type === 'popup_closed' ? 'Google sign-in was closed before finishing.' : (e.message || 'Google sign-in failed.'))),
+    });
+    client.requestAccessToken();
+  });
+}
 
 /** One item in the entrance stagger. Delay is in seconds. */
 function Rise({ d, className = '', children }: { d: number; className?: string; children: ReactNode }) {
@@ -92,7 +145,7 @@ function Scene() {
    The page.
 ------------------------------------------------------------------------- */
 export default function LoginPage() {
-  const { login, verifyMfa, enrolmentNotice } = useAuth();
+  const { login, loginWithGoogle, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState<Step>('credentials');
@@ -149,8 +202,33 @@ export default function LoginPage() {
     }
   }
 
-  const social = (name: string) =>
-    setNotice(`${name} sign-in is not connected yet. Use your email and password, or ask your administrator to enable it.`);
+  async function withGoogle() {
+    setError(null);
+    setNotice(null);
+    if (!GOOGLE_CLIENT_ID) {
+      setNotice(
+        'Google sign-in needs a Google OAuth client id first. An administrator adds it as ' +
+          'GOOGLE_CLIENT_ID (API) and NEXT_PUBLIC_GOOGLE_CLIENT_ID (web) - see .env.example.',
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      const token = await requestGoogleToken();
+      const result = await loginWithGoogle(token);
+      if (result === 'MFA_REQUIRED') go('mfa');
+      else if (result === 'MFA_ENROLMENT_REQUIRED') go('enrol');
+      else router.push('/dashboard');
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message
+          : err instanceof Error ? err.message
+          : 'Could not sign in with Google. Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main className={`si-page grid min-h-screen lg:grid-cols-2 ${play ? 'si-play' : ''}`}>
@@ -215,7 +293,8 @@ export default function LoginPage() {
                   <button
                     type="button"
                     className="si-social mt-4"
-                    onClick={() => social('Google')}
+                    onClick={withGoogle}
+                    disabled={busy}
                   >
                     <GoogleMark />
                     Continue with Google

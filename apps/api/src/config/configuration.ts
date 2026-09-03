@@ -34,6 +34,9 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),
   TRUST_PROXY: z.coerce.boolean().default(false),
 
+  // OAuth client id for "Continue with Google". Sign-in with Google is
+  // simply unavailable until this is set; nothing else depends on it.
+  GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_SHEETS_READONLY: z.coerce.boolean().default(true),
   SHEET_WINGWISE_ID: z.string().optional(),

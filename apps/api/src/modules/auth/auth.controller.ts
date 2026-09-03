@@ -5,6 +5,7 @@ import type { Principal } from '@inventory/shared';
 import { AuthService } from './auth.service';
 import {
   ChangePasswordDto,
+  GoogleLoginDto,
   LoginDto,
   MfaConfirmDto,
   MfaVerifyDto,
@@ -24,6 +25,18 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: any) {
     return this.auth.login(dto.email, dto.password, {
+      ipAddress: extractIp(req),
+      userAgent: req.headers['user-agent'] ?? null,
+    });
+  }
+
+  /** "Continue with Google": the token is checked against Google, then the
+   *  email must belong to an existing account - no self sign-up. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('google')
+  google(@Body() dto: GoogleLoginDto, @Req() req: any) {
+    return this.auth.loginWithGoogle(dto.accessToken, {
       ipAddress: extractIp(req),
       userAgent: req.headers['user-agent'] ?? null,
     });

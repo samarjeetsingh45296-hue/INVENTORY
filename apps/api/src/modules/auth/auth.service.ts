@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
   Inject,
   Injectable,
   Logger,
@@ -20,6 +21,7 @@ import {
   sha256,
   randomToken,
 } from '../../common/utils/crypto.util';
+import type { Prisma } from '@prisma/client';
 
 export interface LoginContext {
   ipAddress: string | null;
@@ -36,6 +38,9 @@ export type LoginResult =
   | ({ status: 'AUTHENTICATED' } & TokenPair & { mustChangePassword: boolean })
   | { status: 'MFA_REQUIRED'; challengeToken: string }
   | { status: 'MFA_ENROLMENT_REQUIRED'; enrolmentToken: string; message: string };
+
+type LoginVia = 'password' | 'google';
+type UserWithRoles = Prisma.UserGetPayload<{ include: { roles: { include: { role: true } } } }>;
 
 @Injectable()
 export class AuthService {
@@ -88,6 +93,87 @@ export class AuthService {
       throw new UnauthorizedException('Incorrect email or password');
     }
 
+    return this.completeLogin(user, normalised, ctx, 'password');
+  }
+
+  // ------------------------------------------------------------ google ----
+
+  /**
+   * "Continue with Google". The browser hands over an access token from
+   * Google's token client; Google itself confirms it was issued for this
+   * app's client id and which verified email it belongs to. That email must
+   * already be an account here - Google proves identity, it does not create
+   * access.
+   */
+  async loginWithGoogle(accessToken: string, ctx: LoginContext): Promise<LoginResult> {
+    const clientId = (this.config.get<string>('env.GOOGLE_CLIENT_ID') ?? '').trim();
+    if (!clientId) {
+      throw new ServiceUnavailableException(
+        'Google sign-in is not set up on the server yet. An administrator must add ' +
+          'GOOGLE_CLIENT_ID to the environment.',
+      );
+    }
+
+    let info: {
+      aud?: string; email?: string; email_verified?: string | boolean; expires_in?: string;
+    };
+    try {
+      const res = await fetch(
+        'https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(accessToken),
+      );
+      if (!res.ok) throw new Error(`tokeninfo ${res.status}`);
+      info = (await res.json()) as typeof info;
+    } catch (err) {
+      this.logger.warn(`Google tokeninfo failed: ${(err as Error).message}`);
+      throw new UnauthorizedException('Google did not confirm that sign-in. Try again.');
+    }
+
+    if (info.aud !== clientId) {
+      throw new UnauthorizedException('That Google sign-in was not issued for this app.');
+    }
+    const verified = info.email_verified === true || info.email_verified === 'true';
+    if (!info.email || !verified) {
+      throw new UnauthorizedException('Your Google account has no verified email address.');
+    }
+
+    const normalised = info.email.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: { email: normalised },
+      include: { roles: { include: { role: true } } },
+    });
+
+    if (!user) {
+      await this.recordLogin(null, normalised, false, 'GOOGLE_NO_ACCOUNT', ctx);
+      throw new UnauthorizedException(
+        `There is no account for ${normalised}. Ask your administrator to create one, ` +
+          'then sign in with Google again.',
+      );
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await this.recordLogin(user.id, normalised, false, 'LOCKED', ctx);
+      throw new ForbiddenException(
+        `Account is locked until ${user.lockedUntil.toISOString()} after too many failed attempts.`,
+      );
+    }
+    if (!user.isActive || user.deletedAt) {
+      await this.recordLogin(user.id, normalised, false, 'INACTIVE', ctx);
+      throw new ForbiddenException('This account has been deactivated');
+    }
+
+    return this.completeLogin(user, normalised, ctx, 'google');
+  }
+
+  /**
+   * Everything after the caller has proven who the user is - by password or
+   * by Google - so both paths share the lockout reset, the MFA gate, and the
+   * session issue.
+   */
+  private async completeLogin(
+    user: UserWithRoles,
+    normalised: string,
+    ctx: LoginContext,
+    via: LoginVia,
+  ): Promise<LoginResult> {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { failedLoginCount: 0, lockedUntil: null },
@@ -136,7 +222,7 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user.id, user.email, true, ctx);
-    await this.afterSuccessfulLogin(user.id, normalised, ctx);
+    await this.afterSuccessfulLogin(user.id, normalised, ctx, false, via);
     return {
       status: 'AUTHENTICATED',
       ...tokens,
@@ -455,6 +541,7 @@ export class AuthService {
     email: string,
     ctx: LoginContext,
     mfaUsed = false,
+    via: LoginVia = 'password',
   ): Promise<void> {
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -467,7 +554,9 @@ export class AuthService {
       entityType: 'User',
       entityId: userId,
       entityLabel: user.displayName,
-      summary: mfaUsed ? 'Signed in with MFA' : 'Signed in',
+      summary: via === 'google'
+        ? 'Signed in with Google'
+        : mfaUsed ? 'Signed in with MFA' : 'Signed in',
       // Sign-in happens on a public route, so the ambient context has no user
       // yet. Name the actor explicitly or the trail reads "Anonymous".
       actor: {
