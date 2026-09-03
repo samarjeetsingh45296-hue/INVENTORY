@@ -31,12 +31,16 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
   );
 }
 
-interface Fit { fit: 'cover' | 'contain'; left: number; top: number; width: number; height: number }
+interface Fit { left: number; top: number; width: number; height: number }
+
+/** Smallest gap the panel keeps from the top and bottom of the screen. */
+const EDGE = 16;
 
 /**
- * Where the video's panel lands on screen. The video covers the viewport
- * when the whole window still fits; on very wide or very short screens it
- * falls back to containing, so the window is never cropped.
+ * Where the video's panel lands on screen. The video always covers the
+ * viewport - no bars - so on a short, wide screen the top and bottom of the
+ * recording's window are cropped; the panel then clamps to the screen with
+ * a small margin rather than following the window off the edge.
  */
 function useVideoPanel(): Fit | null {
   const [fit, setFit] = useState<Fit | null>(null);
@@ -45,22 +49,19 @@ function useVideoPanel(): Fit | null {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (vw < 1024) { setFit(null); return; }
-      const place = (scale: number, mode: Fit['fit']): Fit => {
-        const rw = VIDEO.w * scale;
-        const rh = VIDEO.h * scale;
-        const ox = (vw - rw) / 2;
-        const oy = (vh - rh) / 2;
-        return {
-          fit: mode,
-          left: ox + PANEL.left * rw,
-          top: oy + PANEL.top * rh,
-          width: (PANEL.right - PANEL.left) * rw,
-          height: (PANEL.bottom - PANEL.top) * rh,
-        };
-      };
-      const cover = place(Math.max(vw / VIDEO.w, vh / VIDEO.h), 'cover');
-      const fits = cover.top >= 12 && cover.top + cover.height <= vh - 12;
-      setFit(fits ? cover : place(Math.min(vw / VIDEO.w, vh / VIDEO.h), 'contain'));
+      const scale = Math.max(vw / VIDEO.w, vh / VIDEO.h);
+      const rw = VIDEO.w * scale;
+      const rh = VIDEO.h * scale;
+      const ox = (vw - rw) / 2;
+      const oy = (vh - rh) / 2;
+      const top = Math.max(EDGE, oy + PANEL.top * rh);
+      const bottom = Math.min(vh - EDGE, oy + PANEL.bottom * rh);
+      setFit({
+        left: ox + PANEL.left * rw,
+        top,
+        width: (PANEL.right - PANEL.left) * rw,
+        height: bottom - top,
+      });
     };
     compute();
     // Observe the document rather than listening for window resize: it also
@@ -81,7 +82,7 @@ function useVideoPanel(): Fit | null {
  * behind a glass window - looping full-bleed. It stays still for anyone who
  * has asked for less motion.
  */
-function Backdrop({ fit }: { fit: Fit['fit'] }) {
+function Backdrop() {
   const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const v = ref.current;
@@ -96,7 +97,6 @@ function Backdrop({ fit }: { fit: Fit['fit'] }) {
     <video
       ref={ref}
       className="si-video"
-      style={{ objectFit: fit }}
       src="/login-bg.mp4"
       autoPlay
       muted
@@ -172,7 +172,7 @@ export default function LoginPage() {
 
   return (
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
-      <Backdrop fit={place?.fit ?? 'cover'} />
+      <Backdrop />
 
       <section
         className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}
