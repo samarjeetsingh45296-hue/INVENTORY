@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
@@ -12,6 +12,16 @@ type Step = 'credentials' | 'mfa' | 'enrol';
 // env app name still drives the tab title and the rest of the app.
 const APP = 'Inventory Manager';
 
+/**
+ * The backdrop video already contains a glass window whose left part is a
+ * dark panel. Rather than draw a second window over it, the form panel is
+ * laid exactly onto that region. These are its edges as fractions of the
+ * video frame, measured from the recording; the hook below maps them to
+ * screen pixels for whatever size the video is rendered at.
+ */
+const VIDEO = { w: 1134, h: 720 };
+const PANEL = { left: 0.120, right: 0.462, top: 0.109, bottom: 0.902 };
+
 /** One item in the entrance stagger. Delay is in seconds. */
 function Rise({ d, className = '', children }: { d: number; className?: string; children: ReactNode }) {
   return (
@@ -21,66 +31,87 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
   );
 }
 
-/* -------------------------------------------------------------------------
-   Right panel: the CRT on its hill. Pure CSS, a few embers for life.
-------------------------------------------------------------------------- */
-function Scene() {
-  const embers = [
-    { l: '22%', dur: 9, delay: -2, sx: 18 }, { l: '35%', dur: 12, delay: -7, sx: -12 },
-    { l: '48%', dur: 10, delay: -4, sx: 8 }, { l: '61%', dur: 13, delay: -9, sx: -20 },
-    { l: '72%', dur: 11, delay: -1, sx: 14 }, { l: '82%', dur: 14, delay: -6, sx: -8 },
-    { l: '30%', dur: 15, delay: -11, sx: 22 }, { l: '66%', dur: 9.5, delay: -3, sx: -16 },
-  ];
+interface Fit { fit: 'cover' | 'contain'; left: number; top: number; width: number; height: number }
+
+/**
+ * Where the video's panel lands on screen. The video covers the viewport
+ * when the whole window still fits; on very wide or very short screens it
+ * falls back to containing, so the window is never cropped.
+ */
+function useVideoPanel(): Fit | null {
+  const [fit, setFit] = useState<Fit | null>(null);
+  useEffect(() => {
+    const compute = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      if (vw < 1024) { setFit(null); return; }
+      const place = (scale: number, mode: Fit['fit']): Fit => {
+        const rw = VIDEO.w * scale;
+        const rh = VIDEO.h * scale;
+        const ox = (vw - rw) / 2;
+        const oy = (vh - rh) / 2;
+        return {
+          fit: mode,
+          left: ox + PANEL.left * rw,
+          top: oy + PANEL.top * rh,
+          width: (PANEL.right - PANEL.left) * rw,
+          height: (PANEL.bottom - PANEL.top) * rh,
+        };
+      };
+      const cover = place(Math.max(vw / VIDEO.w, vh / VIDEO.h), 'cover');
+      const fits = cover.top >= 12 && cover.top + cover.height <= vh - 12;
+      setFit(fits ? cover : place(Math.min(vw / VIDEO.w, vh / VIDEO.h), 'contain'));
+    };
+    compute();
+    // Observe the document rather than listening for window resize: it also
+    // fires for zoom changes and emulated viewports, which resize does not.
+    const ro = new ResizeObserver(compute);
+    ro.observe(document.documentElement);
+    window.addEventListener('resize', compute);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', compute);
+    };
+  }, []);
+  return fit;
+}
+
+/**
+ * The backdrop is the reference recording itself - a CRT on red dusk hills
+ * behind a glass window - looping full-bleed. It stays still for anyone who
+ * has asked for less motion.
+ */
+function Backdrop({ fit }: { fit: Fit['fit'] }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      v.pause();
+      return;
+    }
+    v.play().catch(() => undefined);
+  }, []);
   return (
-    <section className="si-scene hidden lg:block" aria-hidden>
-      <div className="si-haze" />
-      <div className="si-sun" />
-      <div className="si-hill" />
-      <div className="si-grass" />
-      {embers.map((e, i) => (
-        <span
-          key={i}
-          className="si-ember"
-          style={{
-            left: e.l,
-            animationDuration: `${e.dur}s`,
-            animationDelay: `${e.delay}s`,
-            '--sx': `${e.sx}px`,
-          } as React.CSSProperties}
-        />
-      ))}
-
-      <div className="si-crt-wrap">
-        <div className="si-crt">
-          <div className="si-crt-body">
-            <div className="si-crt-screen">
-              <div className="si-crt-text">
-                {APP}
-                <small>CENTRAL CONTACT CENTER</small>
-              </div>
-            </div>
-            <div className="si-crt-chin">
-              <span className="si-crt-slot" />
-              <span className="si-crt-led" />
-            </div>
-          </div>
-          <div className="si-crt-neck" />
-          <div className="si-crt-base" />
-        </div>
-        <div className="si-crt-shadow" />
-      </div>
-
-      <div className="si-vignette" />
-    </section>
+    <video
+      ref={ref}
+      className="si-video"
+      style={{ objectFit: fit }}
+      src="/login-bg.mp4"
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      aria-hidden
+    />
   );
 }
 
-/* -------------------------------------------------------------------------
-   The page.
-------------------------------------------------------------------------- */
 export default function LoginPage() {
   const { login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
+  const place = useVideoPanel();
 
   const [step, setStep] = useState<Step>('credentials');
   const [leaving, setLeaving] = useState(false);
@@ -133,28 +164,39 @@ export default function LoginPage() {
     }
   }
 
+  // On large screens the panel is pinned to the video's own window; below
+  // that the video is scenery and the panel is an ordinary centred card.
+  const panelStyle: React.CSSProperties = place
+    ? { position: 'absolute', left: place.left, top: place.top, width: place.width, height: place.height }
+    : {};
+
   return (
-    <main className={`si-page grid min-h-screen lg:grid-cols-2 ${play ? 'si-play' : ''}`}>
-      {/* ------------------------------------------------------ left: form */}
-      <section className="flex min-h-screen flex-col px-6 py-8 sm:px-12 sm:py-10">
+    <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
+      <Backdrop fit={place?.fit ?? 'cover'} />
+
+      <section
+        className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}
+        style={panelStyle}
+        data-pinned={!!place}
+      >
         <Rise d={0}>
           <div className="si-brand">{APP}<span>.</span></div>
         </Rise>
 
-        <div className="flex flex-1 items-center justify-center py-10">
+        <div className="flex flex-1 items-center py-8">
           {/* Keyed on step so each stack replays its stagger from the top. */}
-          <div key={step} className="si-stack w-full max-w-[440px]" data-leaving={leaving}>
+          <div key={step} className="si-stack w-full" data-leaving={leaving}>
             {step === 'credentials' && (
               <>
                 <Rise d={0}>
                   <h1 className="mb-2 text-3xl font-bold tracking-tight">Sign in</h1>
-                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                  <p className="text-[13.5px] leading-relaxed text-[#8e8e93]">
                     Sign in to your {APP} account and keep every asset, every
                     holder, and every record in one place.
                   </p>
                 </Rise>
 
-                <form onSubmit={onSubmit} className="mt-8 space-y-3.5">
+                <form onSubmit={onSubmit} className="mt-7 space-y-3.5">
                   <Rise d={0.06}>
                     <input
                       id="email"
@@ -197,7 +239,7 @@ export default function LoginPage() {
               <form onSubmit={onSubmit} className="space-y-3.5">
                 <Rise d={0}>
                   <h1 className="mb-2 text-3xl font-bold tracking-tight">Verify it&apos;s you</h1>
-                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                  <p className="text-[13.5px] leading-relaxed text-[#8e8e93]">
                     Enter the 6-digit code from your authenticator app, or one of your
                     recovery codes.
                   </p>
@@ -216,7 +258,8 @@ export default function LoginPage() {
                 </Rise>
                 <Rise d={0.12} className="pt-2">
                   <button type="submit" className="si-cta" disabled={busy}>
-                    {busy ? 'Verifying...' : 'Verify'}
+                    <span className="si-shine" aria-hidden />
+                    <span>{busy ? 'Verifying...' : 'Verify'}</span>
                   </button>
                 </Rise>
                 {error && (
@@ -237,7 +280,7 @@ export default function LoginPage() {
               <div className="space-y-3.5">
                 <Rise d={0}>
                   <h1 className="mb-2 text-3xl font-bold tracking-tight">Set up two-factor</h1>
-                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                  <p className="text-[13.5px] leading-relaxed text-[#8e8e93]">
                     {enrolmentNotice ?? 'Your role requires a second factor before you can sign in.'}
                   </p>
                 </Rise>
@@ -250,7 +293,8 @@ export default function LoginPage() {
                 </Rise>
                 <Rise d={0.12} className="pt-2">
                   <button type="button" className="si-cta" onClick={() => go('credentials')}>
-                    Back to sign in
+                    <span className="si-shine" aria-hidden />
+                    <span>Back to sign in</span>
                   </button>
                 </Rise>
               </div>
@@ -258,15 +302,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <Rise d={0.42}>
-          <p className="text-center text-[11px] uppercase tracking-[0.22em] text-[#5c5c60]">
+        <Rise d={0.3}>
+          <p className="text-[10.5px] uppercase tracking-[0.22em] text-[#6a6a6e]">
             Central Contact Center - Parul University
           </p>
         </Rise>
       </section>
-
-      {/* ------------------------------------------------ right: the scene */}
-      <Scene />
     </main>
   );
 }
