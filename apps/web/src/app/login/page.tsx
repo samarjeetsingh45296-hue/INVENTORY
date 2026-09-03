@@ -37,6 +37,8 @@ interface Fit extends Box { frame: Box }
 
 /** Smallest gap the panel keeps from the top and bottom of the screen. */
 const EDGE = 16;
+/** Breathing room around the framed recording, so its bezel and shadow show. */
+const INSET = 24;
 
 /**
  * Where the video's panel lands on screen. The recording is shown whole and
@@ -52,11 +54,13 @@ function useVideoPanel(): Fit | null {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (vw < 1024) { setFit(null); return; }
-      const scale = Math.min(vw / VIDEO.w, vh / VIDEO.h);
+      const aw = vw - INSET * 2;
+      const ah = vh - INSET * 2;
+      const scale = Math.min(aw / VIDEO.w, ah / VIDEO.h);
       const rw = VIDEO.w * scale;
       const rh = VIDEO.h * scale;
-      const ox = (vw - rw) / 2;
-      const oy = (vh - rh) / 2;
+      const ox = INSET + (aw - rw) / 2;
+      const oy = INSET + (ah - rh) / 2;
       const top = Math.max(EDGE, oy + PANEL.top * rh);
       const bottom = Math.min(vh - EDGE, oy + PANEL.bottom * rh);
       setFit({

@@ -300,20 +300,20 @@ body {
    space around the whole recording reads as more of the scene, not bars. */
 .si-video-fill {
   object-fit: cover;
-  /* Kept bright enough to read as more of the scene - dimmed further it
-     looked like black bars, which is exactly what it is there to avoid. */
-  filter: blur(20px) brightness(0.82) saturate(1.2);
-  transform: scale(1.12);
+  /* Heavily softened, as the reference blurs its surroundings - but kept
+     bright, since dimmed it read as black bars. */
+  filter: blur(44px) brightness(0.9) saturate(1.15);
+  transform: scale(1.16);
 }
-/* In front: the whole recording, centred, its edges feathered into the
-   fill so there is no hard seam where it ends. */
+/* In front: the whole recording as a framed screen - rounded, with a slim
+   dark bezel and a deep shadow lifting it off the blurred surround. */
 .si-video-main {
   object-fit: contain;
-  mask-image:
-    linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%),
-    linear-gradient(180deg, transparent 0, black 4%, black 96%, transparent 100%);
-  mask-composite: intersect;
-  -webkit-mask-composite: source-in;
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 5px #0c0b0d,
+    0 0 0 6px rgb(255 255 255 / 0.08),
+    0 46px 120px -28px rgb(0 0 0 / 0.85);
 }
 
 /* The form panel. Pinned over the dark left part of the video's own glass
