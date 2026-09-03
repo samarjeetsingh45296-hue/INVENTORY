@@ -287,11 +287,13 @@ body {
 
 /* ---------------------------------------------------------------- motion */
 /* Items wait invisible until the page arms the cascade (.si-play), then
-   each rises 12px and fades in over 0.45s, 60ms after the one above it. */
+   each rises 12px and fades in over 0.7s, about 110ms after the one above
+   it. The per-item --d values are the spec's 60ms steps; the multiplier is
+   what slows the waterfall so it can actually be watched. */
 .si-in { opacity: 0; }
 .si-play .si-in {
-  animation: si-rise 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
-  animation-delay: var(--d, 0s);
+  animation: si-rise 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(var(--d, 0s) * 1.85);
 }
 @keyframes si-rise {
   from { opacity: 0; transform: translateY(12px); }
