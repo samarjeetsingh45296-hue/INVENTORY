@@ -11,59 +11,6 @@ type Step = 'credentials' | 'mfa' | 'enrol';
 // The sign-in page carries the product name the user chose for it; the
 // env app name still drives the tab title and the rest of the app.
 const APP = 'Inventory Manager';
-const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '').trim();
-
-/* -------------------------------------------------------------------------
-   Google Identity Services. The script is loaded on first use, then a token
-   client opens Google's own sign-in window and hands back an access token,
-   which the API verifies with Google before matching it to an account.
-------------------------------------------------------------------------- */
-interface GoogleTokenClient { requestAccessToken: (o?: { prompt?: string }) => void }
-interface GoogleAccounts {
-  oauth2: {
-    initTokenClient: (cfg: {
-      client_id: string;
-      scope: string;
-      callback: (r: { access_token?: string; error?: string; error_description?: string }) => void;
-      error_callback?: (e: { type?: string; message?: string }) => void;
-    }) => GoogleTokenClient;
-  };
-}
-declare global { interface Window { google?: { accounts: GoogleAccounts } } }
-
-let gisLoading: Promise<void> | null = null;
-function loadGis(): Promise<void> {
-  if (window.google?.accounts?.oauth2) return Promise.resolve();
-  if (!gisLoading) {
-    gisLoading = new Promise((resolve, reject) => {
-      const el = document.createElement('script');
-      el.src = 'https://accounts.google.com/gsi/client';
-      el.async = true;
-      el.onload = () => resolve();
-      el.onerror = () => { gisLoading = null; reject(new Error('Could not load Google sign-in.')); };
-      document.head.append(el);
-    });
-  }
-  return gisLoading;
-}
-
-/** Opens Google's sign-in window and resolves with an access token. */
-async function requestGoogleToken(): Promise<string> {
-  await loadGis();
-  return new Promise((resolve, reject) => {
-    const client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile',
-      callback: (r) => {
-        if (r.access_token) resolve(r.access_token);
-        else reject(new Error(r.error_description || r.error || 'Google sign-in was cancelled.'));
-      },
-      error_callback: (e) =>
-        reject(new Error(e.type === 'popup_closed' ? 'Google sign-in was closed before finishing.' : (e.message || 'Google sign-in failed.'))),
-    });
-    client.requestAccessToken();
-  });
-}
 
 /** One item in the entrance stagger. Delay is in seconds. */
 function Rise({ d, className = '', children }: { d: number; className?: string; children: ReactNode }) {
@@ -73,19 +20,6 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
     </div>
   );
 }
-
-function GoogleMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
-      <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z" />
-      <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z" />
-      <path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.2-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z" />
-      <path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.3 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.4-9.1z" />
-    </svg>
-  );
-}
-
-
 
 /* -------------------------------------------------------------------------
    Right panel: the CRT on its hill. Pure CSS, a few embers for life.
@@ -145,7 +79,7 @@ function Scene() {
    The page.
 ------------------------------------------------------------------------- */
 export default function LoginPage() {
-  const { login, loginWithGoogle, verifyMfa, enrolmentNotice } = useAuth();
+  const { login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState<Step>('credentials');
@@ -162,7 +96,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   /** Fade the current stack out, swap, and let the next one rise in. */
@@ -170,7 +103,6 @@ export default function LoginPage() {
     setLeaving(true);
     window.setTimeout(() => {
       setError(null);
-      setNotice(null);
       setStep(next);
       setLeaving(false);
     }, 260);
@@ -183,7 +115,6 @@ export default function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
     setBusy(true);
     try {
       if (step === 'credentials') {
@@ -197,34 +128,6 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not sign in. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function withGoogle() {
-    setError(null);
-    setNotice(null);
-    if (!GOOGLE_CLIENT_ID) {
-      setNotice(
-        'Google sign-in needs a Google OAuth client id first. An administrator adds it as ' +
-          'GOOGLE_CLIENT_ID (API) and NEXT_PUBLIC_GOOGLE_CLIENT_ID (web) - see .env.example.',
-      );
-      return;
-    }
-    setBusy(true);
-    try {
-      const token = await requestGoogleToken();
-      const result = await loginWithGoogle(token);
-      if (result === 'MFA_REQUIRED') go('mfa');
-      else if (result === 'MFA_ENROLMENT_REQUIRED') go('enrol');
-      else router.push('/dashboard');
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message
-          : err instanceof Error ? err.message
-          : 'Could not sign in with Google. Please try again.',
-      );
     } finally {
       setBusy(false);
     }
@@ -276,32 +179,17 @@ export default function LoginPage() {
                   </Rise>
                   <Rise d={0.18} className="pt-2">
                     <button type="submit" className="si-cta" disabled={busy}>
-                      {busy ? 'Signing in...' : 'Sign in'}
+                      <span className="si-shine" aria-hidden />
+                      <span>{busy ? 'Signing in...' : 'Sign in'}</span>
                     </button>
                   </Rise>
 
-                  {(notice || error) && (
+                  {error && (
                     <div className="si-in" style={{ '--d': '0s' } as React.CSSProperties}>
-                      {error && <p role="alert" className="si-error">{error}</p>}
-                      {notice && <p className="si-note">{notice}</p>}
+                      <p role="alert" className="si-error">{error}</p>
                     </div>
                   )}
                 </form>
-
-                <Rise d={0.24} className="mt-7">
-                  <div className="si-divider">or</div>
-                  <button
-                    type="button"
-                    className="si-social mt-4"
-                    onClick={withGoogle}
-                    disabled={busy}
-                  >
-                    <span className="si-shine" aria-hidden />
-                    <GoogleMark />
-                    Continue with Google
-                  </button>
-                </Rise>
-
               </>
             )}
 
