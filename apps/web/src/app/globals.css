@@ -291,12 +291,28 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
   object-position: 50% 50%;
   z-index: 0;
   animation: si-video-in 1.2s ease both;
 }
 @keyframes si-video-in { from { opacity: 0; } }
+/* Behind: the same scene blown up to cover, blurred and dimmed, so the
+   space around the whole recording reads as more of the scene, not bars. */
+.si-video-fill {
+  object-fit: cover;
+  filter: blur(28px) brightness(0.55) saturate(1.1);
+  transform: scale(1.08);
+}
+/* In front: the whole recording, centred, its edges feathered into the
+   fill so there is no hard seam where it ends. */
+.si-video-main {
+  object-fit: contain;
+  mask-image:
+    linear-gradient(90deg, transparent 0, black 3%, black 97%, transparent 100%),
+    linear-gradient(180deg, transparent 0, black 3%, black 97%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
 
 /* The form panel. Pinned over the dark left part of the video's own glass
    window on large screens (position and size come from the page), and an

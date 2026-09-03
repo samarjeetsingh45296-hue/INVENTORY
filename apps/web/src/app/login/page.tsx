@@ -31,16 +31,19 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
   );
 }
 
-interface Fit { left: number; top: number; width: number; height: number }
+interface Box { left: number; top: number; width: number; height: number }
+/** The panel's screen box, plus the box the whole recording is drawn in. */
+interface Fit extends Box { frame: Box }
 
 /** Smallest gap the panel keeps from the top and bottom of the screen. */
 const EDGE = 16;
 
 /**
- * Where the video's panel lands on screen. The video always covers the
- * viewport - no bars - so on a short, wide screen the top and bottom of the
- * recording's window are cropped; the panel then clamps to the screen with
- * a small margin rather than following the window off the edge.
+ * Where the video's panel lands on screen. The recording is shown whole and
+ * centred - its glass window always sits in the middle, uncropped - and
+ * the screen around it is filled by a blurred, enlarged copy of the same
+ * scene, so there are no bars either. The panel clamp below only matters
+ * on screens too short for even the contained window.
  */
 function useVideoPanel(): Fit | null {
   const [fit, setFit] = useState<Fit | null>(null);
@@ -49,7 +52,7 @@ function useVideoPanel(): Fit | null {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (vw < 1024) { setFit(null); return; }
-      const scale = Math.max(vw / VIDEO.w, vh / VIDEO.h);
+      const scale = Math.min(vw / VIDEO.w, vh / VIDEO.h);
       const rw = VIDEO.w * scale;
       const rh = VIDEO.h * scale;
       const ox = (vw - rw) / 2;
@@ -61,6 +64,7 @@ function useVideoPanel(): Fit | null {
         top,
         width: (PANEL.right - PANEL.left) * rw,
         height: bottom - top,
+        frame: { left: ox, top: oy, width: rw, height: rh },
       });
     };
     compute();
@@ -82,29 +86,34 @@ function useVideoPanel(): Fit | null {
  * behind a glass window - looping full-bleed. It stays still for anyone who
  * has asked for less motion.
  */
-function Backdrop() {
-  const ref = useRef<HTMLVideoElement | null>(null);
+function Backdrop({ frame }: { frame: Box | null }) {
+  const fill = useRef<HTMLVideoElement | null>(null);
+  const main = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
+    const vids = [fill.current, main.current].filter(Boolean) as HTMLVideoElement[];
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      v.pause();
+      vids.forEach((v) => v.pause());
       return;
     }
-    v.play().catch(() => undefined);
+    vids.forEach((v) => v.play().catch(() => undefined));
   }, []);
+  const props = {
+    src: '/login-bg.mp4', autoPlay: true, muted: true, loop: true, playsInline: true,
+    preload: 'auto' as const, 'aria-hidden': true,
+  };
   return (
-    <video
-      ref={ref}
-      className="si-video"
-      src="/login-bg.mp4"
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="auto"
-      aria-hidden
-    />
+    <>
+      {/* Blurred, enlarged copy fills whatever the whole recording leaves bare. */}
+      <video ref={fill} className="si-video si-video-fill" {...props} />
+      {/* The recording itself, whole and centred. Its element is sized to
+          the drawn frame so the edge feather lands on the real edges. */}
+      <video
+        ref={main}
+        className="si-video si-video-main"
+        style={frame ? { inset: 'auto', ...frame } : undefined}
+        {...props}
+      />
+    </>
   );
 }
 
@@ -172,7 +181,7 @@ export default function LoginPage() {
 
   return (
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
-      <Backdrop />
+      <Backdrop frame={place?.frame ?? null} />
 
       <section
         className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}
