@@ -300,16 +300,18 @@ body {
    space around the whole recording reads as more of the scene, not bars. */
 .si-video-fill {
   object-fit: cover;
-  filter: blur(28px) brightness(0.55) saturate(1.1);
-  transform: scale(1.08);
+  /* Kept bright enough to read as more of the scene - dimmed further it
+     looked like black bars, which is exactly what it is there to avoid. */
+  filter: blur(20px) brightness(0.82) saturate(1.2);
+  transform: scale(1.12);
 }
 /* In front: the whole recording, centred, its edges feathered into the
    fill so there is no hard seam where it ends. */
 .si-video-main {
   object-fit: contain;
   mask-image:
-    linear-gradient(90deg, transparent 0, black 3%, black 97%, transparent 100%),
-    linear-gradient(180deg, transparent 0, black 3%, black 97%, transparent 100%);
+    linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%),
+    linear-gradient(180deg, transparent 0, black 4%, black 96%, transparent 100%);
   mask-composite: intersect;
   -webkit-mask-composite: source-in;
 }
