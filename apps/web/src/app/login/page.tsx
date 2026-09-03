@@ -32,21 +32,7 @@ function GoogleMark() {
   );
 }
 
-function AppleMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-    </svg>
-  );
-}
 
-function XMark() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
-    </svg>
-  );
-}
 
 /* -------------------------------------------------------------------------
    Right panel: the CRT on its hill. Pure CSS, a few embers for life.
@@ -121,7 +107,6 @@ export default function LoginPage() {
   }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [agree, setAgree] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -211,19 +196,8 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                   </Rise>
-                  <Rise d={0.18} className="pt-1">
-                    <label className="si-check relative">
-                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                      <span className="si-box">
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-                          <path d="M2 6.5 4.6 9 10 3.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                      I agree to the Terms &amp; Privacy Policy
-                    </label>
-                  </Rise>
-                  <Rise d={0.24} className="pt-2">
-                    <button type="submit" className="si-cta" disabled={busy || !agree}>
+                  <Rise d={0.18} className="pt-2">
+                    <button type="submit" className="si-cta" disabled={busy}>
                       {busy ? 'Signing in...' : 'Sign in'}
                     </button>
                   </Rise>
@@ -236,22 +210,19 @@ export default function LoginPage() {
                   )}
                 </form>
 
-                <Rise d={0.3} className="mt-7">
-                  <div className="si-divider">or sign in via</div>
-                  <div className="mt-4 grid grid-cols-3 gap-3">
-                    <button type="button" className="si-social" onClick={() => social('Google')} aria-label="Continue with Google">
-                      <GoogleMark />
-                    </button>
-                    <button type="button" className="si-social" onClick={() => social('Apple')} aria-label="Continue with Apple">
-                      <AppleMark />
-                    </button>
-                    <button type="button" className="si-social" onClick={() => social('X')} aria-label="Continue with X">
-                      <XMark />
-                    </button>
-                  </div>
+                <Rise d={0.24} className="mt-7">
+                  <div className="si-divider">or</div>
+                  <button
+                    type="button"
+                    className="si-social mt-4"
+                    onClick={() => social('Google')}
+                  >
+                    <GoogleMark />
+                    Continue with Google
+                  </button>
                 </Rise>
 
-                <Rise d={0.36} className="mt-8">
+                <Rise d={0.3} className="mt-8">
                   <p className="text-center text-[13.5px] text-[#8e8e93]">
                     Don&apos;t have an account?{' '}
                     <span className="si-link">Ask your administrator</span>
