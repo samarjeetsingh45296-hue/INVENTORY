@@ -1,82 +1,29 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { PasswordInput } from '@/components/password-input';
 
-const TITLE = 'Inventory Manager';
-const NOISE = '#8SXK$%@0123456789&*<>|=+';
+type Step = 'credentials' | 'mfa' | 'enrol';
 
-/**
- * The wordmark resolves out of character noise - the same alphabet the
- * backdrop's dither is drawn from - one letter at a time, then a light
- * sweeps across the finished text. Skipped for anyone asking for less motion.
- */
-function ScrambleTitle({ text }: { text: string }) {
-  const [settled, setSettled] = useState(0);
-  const [noise, setNoise] = useState('');
-  const [sheen, setSheen] = useState(false);
+// The sign-in page carries the product name the user chose for it; the
+// env app name still drives the tab title and the rest of the app.
+const APP = 'Inventory Manager';
 
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setSettled(text.length);
-      return;
-    }
-    let i = 0;
-    const step = window.setInterval(() => {
-      i += 1;
-      setSettled(i);
-      // Re-roll the unsettled tail so it visibly churns.
-      setNoise(
-        Array.from({ length: Math.max(0, text.length - i) },
-          () => NOISE[Math.floor(Math.random() * NOISE.length)]).join(''),
-      );
-      if (i >= text.length) window.clearInterval(step);
-    }, 55);
-    return () => window.clearInterval(step);
-  }, [text]);
-
-  // Sweep a highlight once the word is whole, then drop the skin so the
-  // title falls back to plain solid ink. `sheen` is deliberately absent from
-  // the deps: including it re-ran this effect the moment it flipped true,
-  // and the cleanup cancelled the very timeout meant to turn it off again.
-  const done = settled >= text.length;
-  useEffect(() => {
-    if (!done) return;
-    setSheen(true);
-    const off = window.setTimeout(() => setSheen(false), 1500);
-    return () => window.clearTimeout(off);
-  }, [done]);
-
+/** One item in the entrance stagger. Delay is in seconds. */
+function Rise({ d, className = '', children }: { d: number; className?: string; children: ReactNode }) {
   return (
-    <h1 className={`wf-title ${sheen ? 'wf-title-sheen' : ''}`} aria-label={text}>
-      {/* Once settled the text is a bare node, not per-letter spans. Those
-          spans keep an identity `transform` after their landing animation,
-          and any transform on a child creates a stacking context that stops
-          the parent's background-clip:text gradient painting through - which
-          renders the whole title invisible. */}
-      {done
-        ? text
-        : text.split('').map((ch, i) => (
-            <span
-              key={i}
-              className="wf-title-ch"
-              data-settled={i < settled}
-              style={{ animationDelay: `${i * 0.02}s` }}
-              aria-hidden
-            >
-              {i < settled ? ch : (noise[i - settled] ?? ch)}
-            </span>
-          ))}
-    </h1>
+    <div className={`si-in ${className}`} style={{ '--d': `${d}s` } as React.CSSProperties}>
+      {children}
+    </div>
   );
 }
 
 function GoogleMark() {
   return (
-    <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
       <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z" />
       <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z" />
       <path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.2-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z" />
@@ -85,17 +32,107 @@ function GoogleMark() {
   );
 }
 
+function AppleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+    </svg>
+  );
+}
+
+function XMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   Right panel: the CRT on its hill. Pure CSS, a few embers for life.
+------------------------------------------------------------------------- */
+function Scene() {
+  const embers = [
+    { l: '22%', dur: 9, delay: -2, sx: 18 }, { l: '35%', dur: 12, delay: -7, sx: -12 },
+    { l: '48%', dur: 10, delay: -4, sx: 8 }, { l: '61%', dur: 13, delay: -9, sx: -20 },
+    { l: '72%', dur: 11, delay: -1, sx: 14 }, { l: '82%', dur: 14, delay: -6, sx: -8 },
+    { l: '30%', dur: 15, delay: -11, sx: 22 }, { l: '66%', dur: 9.5, delay: -3, sx: -16 },
+  ];
+  return (
+    <section className="si-scene hidden lg:block" aria-hidden>
+      <div className="si-haze" />
+      <div className="si-sun" />
+      <div className="si-hill" />
+      <div className="si-grass" />
+      {embers.map((e, i) => (
+        <span
+          key={i}
+          className="si-ember"
+          style={{
+            left: e.l,
+            animationDuration: `${e.dur}s`,
+            animationDelay: `${e.delay}s`,
+            '--sx': `${e.sx}px`,
+          } as React.CSSProperties}
+        />
+      ))}
+
+      <div className="si-crt-wrap">
+        <div className="si-crt">
+          <div className="si-crt-body">
+            <div className="si-crt-screen">
+              <div className="si-crt-text">
+                {APP}
+                <small>CENTRAL CONTACT CENTER</small>
+              </div>
+            </div>
+            <div className="si-crt-chin">
+              <span className="si-crt-slot" />
+              <span className="si-crt-led" />
+            </div>
+          </div>
+          <div className="si-crt-neck" />
+          <div className="si-crt-base" />
+        </div>
+        <div className="si-crt-shadow" />
+      </div>
+
+      <div className="si-vignette" />
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   The page.
+------------------------------------------------------------------------- */
 export default function LoginPage() {
   const { login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
 
-  const [step, setStep] = useState<'credentials' | 'mfa' | 'enrol'>('credentials');
+  const [step, setStep] = useState<Step>('credentials');
+  const [leaving, setLeaving] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [agree, setAgree] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /** Fade the current stack out, swap, and let the next one rise in. */
+  const go = (next: Step) => {
+    setLeaving(true);
+    window.setTimeout(() => {
+      setError(null);
+      setNotice(null);
+      setStep(next);
+      setLeaving(false);
+    }, 260);
+  };
+
+  // Mount-time safety: nothing should be stuck invisible if a transition is
+  // interrupted by unmount.
+  useEffect(() => () => setLeaving(false), []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,166 +142,190 @@ export default function LoginPage() {
     try {
       if (step === 'credentials') {
         const result = await login(email, password);
-        if (result === 'MFA_REQUIRED') setStep('mfa');
-        else if (result === 'MFA_ENROLMENT_REQUIRED') setStep('enrol');
+        if (result === 'MFA_REQUIRED') go('mfa');
+        else if (result === 'MFA_ENROLMENT_REQUIRED') go('enrol');
         else router.push('/dashboard');
       } else if (step === 'mfa') {
         await verifyMfa(code);
         router.push('/dashboard');
       }
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not sign in. Please try again.',
-      );
+      setError(err instanceof ApiError ? err.message : 'Could not sign in. Please try again.');
     } finally {
       setBusy(false);
     }
   }
 
+  const social = (name: string) =>
+    setNotice(`${name} sign-in is not connected yet. Use your email and password, or ask your administrator to enable it.`);
+
   return (
-    <main className="wf-page relative min-h-screen w-full overflow-hidden">
-      <div className="wf-art" aria-hidden />
+    <main className="si-page grid min-h-screen lg:grid-cols-2">
+      {/* ------------------------------------------------------ left: form */}
+      <section className="flex min-h-screen flex-col px-6 py-8 sm:px-12 sm:py-10">
+        <Rise d={0}>
+          <div className="si-brand">{APP}<span>.</span></div>
+        </Rise>
 
-      <div className="relative grid min-h-screen place-items-center p-4">
-        <div className="wf-card-ring w-full max-w-[27vw] min-w-[336px]">
-          <div className="wf-card p-8 text-[#f4f2ef]">
-            <div className="flex flex-col items-center text-center">
-              <div className="wf-logo">IS</div>
-              <div className="mt-4">
-                <ScrambleTitle text={TITLE} />
-              </div>
-              <p className="mt-2 text-[13px] text-[rgb(244_242_239/0.5)]">
-                Every asset, every holder, one record.
-              </p>
-            </div>
-
+        <div className="flex flex-1 items-center py-10">
+          {/* Keyed on step so each stack replays its stagger from the top. */}
+          <div key={step} className="si-stack w-full max-w-[400px]" data-leaving={leaving}>
             {step === 'credentials' && (
               <>
-                <button
-                  type="button"
-                  className="wf-social mt-7"
-                  onClick={() =>
-                    setNotice(
-                      'Google sign-in is not connected yet. Use your email and password, ' +
-                      'or ask your administrator to enable it.',
-                    )
-                  }
-                >
-                  <GoogleMark />
-                  Continue with Google
-                </button>
-                <div className="wf-divider my-4">or</div>
+                <Rise d={0}>
+                  <h1 className="mb-2 text-3xl font-bold tracking-tight">Sign in</h1>
+                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                    Sign in to your {APP} account and keep every asset, every
+                    holder, and every record in one place.
+                  </p>
+                </Rise>
+
+                <form onSubmit={onSubmit} className="mt-8 space-y-3.5">
+                  <Rise d={0.06}>
+                    <input
+                      id="email"
+                      type="email"
+                      className="input"
+                      placeholder="Enter Email"
+                      autoComplete="username"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </Rise>
+                  <Rise d={0.12}>
+                    <PasswordInput
+                      id="password"
+                      placeholder="Enter Password"
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </Rise>
+                  <Rise d={0.18} className="pt-1">
+                    <label className="si-check relative">
+                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+                      <span className="si-box">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                          <path d="M2 6.5 4.6 9 10 3.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                      I agree to the Terms &amp; Privacy Policy
+                    </label>
+                  </Rise>
+                  <Rise d={0.24} className="pt-2">
+                    <button type="submit" className="si-cta" disabled={busy || !agree}>
+                      {busy ? 'Signing in...' : 'Sign in'}
+                    </button>
+                  </Rise>
+
+                  {(notice || error) && (
+                    <div className="si-in" style={{ '--d': '0s' } as React.CSSProperties}>
+                      {error && <p role="alert" className="si-error">{error}</p>}
+                      {notice && <p className="si-note">{notice}</p>}
+                    </div>
+                  )}
+                </form>
+
+                <Rise d={0.3} className="mt-7">
+                  <div className="si-divider">or sign in via</div>
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <button type="button" className="si-social" onClick={() => social('Google')} aria-label="Continue with Google">
+                      <GoogleMark />
+                    </button>
+                    <button type="button" className="si-social" onClick={() => social('Apple')} aria-label="Continue with Apple">
+                      <AppleMark />
+                    </button>
+                    <button type="button" className="si-social" onClick={() => social('X')} aria-label="Continue with X">
+                      <XMark />
+                    </button>
+                  </div>
+                </Rise>
+
+                <Rise d={0.36} className="mt-8">
+                  <p className="text-center text-[13.5px] text-[#8e8e93]">
+                    Don&apos;t have an account?{' '}
+                    <span className="si-link">Ask your administrator</span>
+                  </p>
+                </Rise>
               </>
             )}
 
-            <form
-              onSubmit={onSubmit}
-              className={step === 'credentials' ? 'space-y-3' : 'mt-7 space-y-3'}
-            >
-              {step === 'enrol' ? (
-                <div className="space-y-3">
-                  <h2 className="text-[14px] font-semibold">
-                    Set up two-factor authentication
-                  </h2>
-                  <p className="text-[13px] leading-relaxed text-[rgb(244_242_239/0.55)]">
-                    {enrolmentNotice ??
-                      'Your role requires a second factor before you can sign in.'}
+            {step === 'mfa' && (
+              <form onSubmit={onSubmit} className="space-y-3.5">
+                <Rise d={0}>
+                  <h1 className="mb-2 text-3xl font-bold tracking-tight">Verify it&apos;s you</h1>
+                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                    Enter the 6-digit code from your authenticator app, or one of your
+                    recovery codes.
                   </p>
-                  <p className="text-[13px] leading-relaxed text-[rgb(244_242_239/0.55)]">
-                    The enrolment screen is not built yet. For now an administrator
-                    can complete this from the API, or clear MFA_REQUIRED_ROLES in
-                    the environment to sign in with a password alone.
+                </Rise>
+                <Rise d={0.06} className="pt-4">
+                  <input
+                    id="code"
+                    inputMode="numeric"
+                    className="input text-center text-lg tracking-[0.4em]"
+                    placeholder="000000"
+                    autoComplete="one-time-code"
+                    required
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                </Rise>
+                <Rise d={0.12} className="pt-2">
+                  <button type="submit" className="si-cta" disabled={busy}>
+                    {busy ? 'Verifying...' : 'Verify'}
+                  </button>
+                </Rise>
+                {error && (
+                  <div className="si-in" style={{ '--d': '0s' } as React.CSSProperties}>
+                    <p role="alert" className="si-error">{error}</p>
+                  </div>
+                )}
+                <Rise d={0.18} className="pt-2">
+                  <p className="text-center text-[13.5px] text-[#8e8e93]">
+                    Wrong account?{' '}
+                    <button type="button" className="si-link" onClick={() => go('credentials')}>Back to sign in</button>
                   </p>
-                  <button type="button" className="wf-btn" onClick={() => setStep('credentials')}>
+                </Rise>
+              </form>
+            )}
+
+            {step === 'enrol' && (
+              <div className="space-y-3.5">
+                <Rise d={0}>
+                  <h1 className="mb-2 text-3xl font-bold tracking-tight">Set up two-factor</h1>
+                  <p className="text-[14px] leading-relaxed text-[#8e8e93]">
+                    {enrolmentNotice ?? 'Your role requires a second factor before you can sign in.'}
+                  </p>
+                </Rise>
+                <Rise d={0.06}>
+                  <p className="si-note">
+                    The enrolment screen is not built yet. For now an administrator can
+                    complete this from the API, or clear MFA_REQUIRED_ROLES in the
+                    environment to sign in with a password alone.
+                  </p>
+                </Rise>
+                <Rise d={0.12} className="pt-2">
+                  <button type="button" className="si-cta" onClick={() => go('credentials')}>
                     Back to sign in
                   </button>
-                </div>
-              ) : step === 'credentials' ? (
-                <>
-                  <div className="wf-field">
-                    <div className="wf-inner">
-                      <input
-                        id="email"
-                        type="email"
-                        className="input"
-                        autoComplete="username"
-                        placeholder="Email address"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="wf-field">
-                    <div className="wf-inner">
-                      <PasswordInput
-                        id="password"
-                        autoComplete="current-password"
-                        placeholder="Password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="pt-1">
-                    <button type="submit" className="wf-btn" disabled={busy}>
-                      {busy ? 'Please wait...' : 'Sign in'}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="wf-field">
-                    <div className="wf-inner">
-                      <input
-                        id="code"
-                        inputMode="numeric"
-                        className="input text-center tracking-[0.4em]"
-                        autoComplete="one-time-code"
-                        placeholder="000000"
-                        required
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[12px] leading-relaxed text-[rgb(244_242_239/0.5)]">
-                    Enter the 6-digit code from your authenticator app, or one of
-                    your recovery codes.
-                  </p>
-                  <button type="submit" className="wf-btn" disabled={busy}>
-                    {busy ? 'Please wait...' : 'Verify'}
-                  </button>
-                </>
-              )}
-
-              {notice && (
-                <p className="rounded-2xl border border-[rgb(255_255_255/0.12)] px-3.5 py-2.5
-                              text-[12.5px] leading-relaxed text-[rgb(244_242_239/0.66)]">
-                  {notice}
-                </p>
-              )}
-
-              {error && (
-                <p
-                  role="alert"
-                  className="rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#ffb4a2]"
-                  style={{ background: 'rgb(127 29 29 / 0.35)' }}
-                >
-                  {error}
-                </p>
-              )}
-            </form>
-
-            <p className="mt-5 text-center text-[12px] text-[rgb(244_242_239/0.45)]">
-              No account? <span className="wf-link">Ask your administrator</span>
-            </p>
+                </Rise>
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      <p className="wf-caption">Central Contact Center - Parul University</p>
+        <Rise d={0.42}>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[#5c5c60]">
+            Central Contact Center - Parul University
+          </p>
+        </Rise>
+      </section>
+
+      {/* ------------------------------------------------ right: the scene */}
+      <Scene />
     </main>
   );
 }
