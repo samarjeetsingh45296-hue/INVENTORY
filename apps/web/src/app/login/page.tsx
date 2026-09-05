@@ -32,20 +32,21 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
 }
 
 interface Box { left: number; top: number; width: number; height: number }
-/** The panel's screen box, plus the box the whole recording is drawn in. */
-interface Fit extends Box { frame: Box }
+/**
+ * The panel's screen box, plus how much of it (if any) the screen cuts off
+ * at the top and bottom, so its content can stay clear of the edges.
+ */
+interface Fit extends Box { cutTop: number; cutBottom: number }
 
-/** Smallest gap the panel keeps from the top and bottom of the screen. */
+/** Smallest gap the panel's content keeps from the top and bottom of the screen. */
 const EDGE = 16;
-/** Breathing room around the framed recording, so its bezel and shadow show. */
-const INSET = 24;
 
 /**
- * Where the video's panel lands on screen. The recording is shown whole and
- * centred - its glass window always sits in the middle, uncropped - and
- * the screen around it is filled by a blurred, enlarged copy of the same
- * scene, so there are no bars either. The panel clamp below only matters
- * on screens too short for even the contained window.
+ * Where the video's panel lands on screen. The recording covers the whole
+ * viewport - no bars, no frame - so its glass window stays centred, and on
+ * a short, wide screen the window's top and bottom are cropped along with
+ * the scene. The panel follows the window exactly; when the crop reaches
+ * it, the panel's padding grows so the form never slides off the screen.
  */
 function useVideoPanel(): Fit | null {
   const [fit, setFit] = useState<Fit | null>(null);
@@ -54,21 +55,20 @@ function useVideoPanel(): Fit | null {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (vw < 1024) { setFit(null); return; }
-      const aw = vw - INSET * 2;
-      const ah = vh - INSET * 2;
-      const scale = Math.min(aw / VIDEO.w, ah / VIDEO.h);
+      const scale = Math.max(vw / VIDEO.w, vh / VIDEO.h);
       const rw = VIDEO.w * scale;
       const rh = VIDEO.h * scale;
-      const ox = INSET + (aw - rw) / 2;
-      const oy = INSET + (ah - rh) / 2;
-      const top = Math.max(EDGE, oy + PANEL.top * rh);
-      const bottom = Math.min(vh - EDGE, oy + PANEL.bottom * rh);
+      const ox = (vw - rw) / 2;
+      const oy = (vh - rh) / 2;
+      const top = oy + PANEL.top * rh;
+      const bottom = oy + PANEL.bottom * rh;
       setFit({
         left: ox + PANEL.left * rw,
         top,
         width: (PANEL.right - PANEL.left) * rw,
         height: bottom - top,
-        frame: { left: ox, top: oy, width: rw, height: rh },
+        cutTop: Math.max(0, EDGE - top),
+        cutBottom: Math.max(0, bottom - (vh - EDGE)),
       });
     };
     compute();
@@ -90,34 +90,29 @@ function useVideoPanel(): Fit | null {
  * behind a glass window - looping full-bleed. It stays still for anyone who
  * has asked for less motion.
  */
-function Backdrop({ frame }: { frame: Box | null }) {
-  const fill = useRef<HTMLVideoElement | null>(null);
-  const main = useRef<HTMLVideoElement | null>(null);
+function Backdrop() {
+  const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
-    const vids = [fill.current, main.current].filter(Boolean) as HTMLVideoElement[];
+    const v = ref.current;
+    if (!v) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      vids.forEach((v) => v.pause());
+      v.pause();
       return;
     }
-    vids.forEach((v) => v.play().catch(() => undefined));
+    v.play().catch(() => undefined);
   }, []);
-  const props = {
-    src: '/login-bg.mp4', autoPlay: true, muted: true, loop: true, playsInline: true,
-    preload: 'auto' as const, 'aria-hidden': true,
-  };
   return (
-    <>
-      {/* Blurred, enlarged copy fills whatever the whole recording leaves bare. */}
-      <video ref={fill} className="si-video si-video-fill" {...props} />
-      {/* The recording itself, whole and centred. Its element is sized to
-          the drawn frame so the edge feather lands on the real edges. */}
-      <video
-        ref={main}
-        className="si-video si-video-main"
-        style={frame ? { inset: 'auto', ...frame } : undefined}
-        {...props}
-      />
-    </>
+    <video
+      ref={ref}
+      className="si-video"
+      src="/login-bg.mp4"
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      aria-hidden
+    />
   );
 }
 
@@ -179,13 +174,24 @@ export default function LoginPage() {
 
   // On large screens the panel is pinned to the video's own window; below
   // that the video is scenery and the panel is an ordinary centred card.
+  // Where the screen crops the window, the panel's own padding grows by the
+  // same amount, so brand and footer stay visible and the form stays centred
+  // in what can actually be seen.
   const panelStyle: React.CSSProperties = place
-    ? { position: 'absolute', left: place.left, top: place.top, width: place.width, height: place.height }
+    ? {
+        position: 'absolute',
+        left: place.left,
+        top: place.top,
+        width: place.width,
+        height: place.height,
+        paddingTop: 40 + place.cutTop,
+        paddingBottom: 40 + place.cutBottom,
+      }
     : {};
 
   return (
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
-      <Backdrop frame={place?.frame ?? null} />
+      <Backdrop />
 
       <section
         className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}

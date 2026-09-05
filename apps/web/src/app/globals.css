@@ -286,35 +286,20 @@ body {
 --------------------------------------------------------------------------- */
 .si-page { background: #120404; color: #ffffff; }
 
+/* The recording fills the whole viewport - no bars, no frame - with its
+   glass window centred. On a short, wide screen only the scene's own top
+   and bottom are cropped. */
 .si-video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
   object-position: 50% 50%;
   z-index: 0;
   animation: si-video-in 1.2s ease both;
 }
 @keyframes si-video-in { from { opacity: 0; } }
-/* Behind: the same scene blown up to cover, blurred and dimmed, so the
-   space around the whole recording reads as more of the scene, not bars. */
-.si-video-fill {
-  object-fit: cover;
-  /* Heavily softened, as the reference blurs its surroundings - but kept
-     bright, since dimmed it read as black bars. */
-  filter: blur(44px) brightness(0.9) saturate(1.15);
-  transform: scale(1.16);
-}
-/* In front: the whole recording as a framed screen - rounded, with a slim
-   dark bezel and a deep shadow lifting it off the blurred surround. */
-.si-video-main {
-  object-fit: contain;
-  border-radius: 18px;
-  box-shadow:
-    0 0 0 5px #0c0b0d,
-    0 0 0 6px rgb(255 255 255 / 0.08),
-    0 46px 120px -28px rgb(0 0 0 / 0.85);
-}
 
 /* The form panel. Pinned over the dark left part of the video's own glass
    window on large screens (position and size come from the page), and an
