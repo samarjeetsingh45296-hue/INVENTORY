@@ -48,8 +48,13 @@ const EDGE = 16;
  * the scene. The panel follows the window exactly; when the crop reaches
  * it, the panel's padding grows so the form never slides off the screen.
  */
-function useVideoPanel(): Fit | null {
-  const [fit, setFit] = useState<Fit | null>(null);
+/**
+ * Placement is unknown until the first measurement on the client; that
+ * state is `undefined`, and nothing panel-shaped is drawn during it. Below
+ * 1024px it becomes `null`: the ordinary centred card.
+ */
+function useVideoPanel(): Fit | null | undefined {
+  const [fit, setFit] = useState<Fit | null | undefined>(undefined);
   useEffect(() => {
     const compute = () => {
       const vw = window.innerWidth;
@@ -193,6 +198,10 @@ export default function LoginPage() {
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
       <Backdrop />
 
+      {/* Nothing is drawn until placement is known. The old fallback - a
+          centred card rendered before the hook had measured the screen -
+          flashed as a black rectangle for one frame on every load. */}
+      {place !== undefined && (
       <section
         className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}
         style={panelStyle}
@@ -327,6 +336,7 @@ export default function LoginPage() {
           </p>
         </Rise>
       </section>
+      )}
     </main>
   );
 }

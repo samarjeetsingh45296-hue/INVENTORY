@@ -297,7 +297,9 @@ body {
   object-fit: cover;
   object-position: 50% 50%;
   z-index: 0;
-  animation: si-video-in 1.2s ease both;
+  /* Just enough to hide the decoder's first blank frame; a long fade here
+     read as the whole page loading out of black. */
+  animation: si-video-in 0.25s ease both;
 }
 @keyframes si-video-in { from { opacity: 0; } }
 
@@ -314,9 +316,10 @@ body {
   background: linear-gradient(180deg, rgb(15 10 9 / 0.985), rgb(11 8 7 / 0.99));
   border-radius: 20px 0 0 20px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), inset -1px 0 0 rgb(255 255 255 / 0.06);
-  animation: si-panel-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+  /* No fade: the panel is already in its final place when it first paints,
+     and any transparency here lets the recording's own form show through
+     for a moment. Its contents cascade in on their own. */
 }
-@keyframes si-panel-in { from { opacity: 0; } }
 .si-panel[data-pinned='false'] {
   border-radius: 22px;
   border: 1px solid rgb(255 255 255 / 0.12);
