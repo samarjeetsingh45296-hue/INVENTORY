@@ -66,7 +66,7 @@ class CugController {
             where: { status: AllocationStatus.ACTIVE },
             include: {
               employee: {
-                select: { id: true, fullName: true, employeeCode: true, process: true },
+                select: { id: true, fullName: true, employeeCode: true, process: true, level: true},
               },
             },
           },
@@ -93,7 +93,7 @@ class CugController {
   history(@Param('id') id: string) {
     return this.prisma.cugAllocation.findMany({
       where: { connectionId: id },
-      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      include: { employee: { select: { fullName: true, employeeCode: true, level: true} } },
       orderBy: { allocatedAt: 'desc' },
     });
   }
@@ -145,7 +145,7 @@ class CugAllocationController {
       const conn = await tx.cugConnection.findFirstOrThrow({ where: { id } });
       const open = await tx.cugAllocation.findFirst({
         where: { connectionId: id, status: AllocationStatus.ACTIVE },
-        include: { employee: { select: { fullName: true } } },
+        include: { employee: { select: { fullName: true, level: true} } },
       });
       if (open) {
         throw new Error(
@@ -194,7 +194,7 @@ class CugAllocationController {
       const conn = await tx.cugConnection.findFirstOrThrow({ where: { id } });
       const open = await tx.cugAllocation.findFirst({
         where: { connectionId: id, status: AllocationStatus.ACTIVE },
-        include: { employee: { select: { fullName: true } } },
+        include: { employee: { select: { fullName: true, level: true} } },
       });
       if (!open) throw new Error(`${conn.mobileNumber} is not currently issued to anyone.`);
 

@@ -67,9 +67,30 @@ export class AuditController {
       this.prisma.auditLog.count({ where }),
     ]);
 
+    // Team level of each actor, by email then name, so the trail verifies who
+    // did what at a glance.
+    const names = [...new Set(items.map((i) => i.userName).filter(Boolean))];
+    const emails = [...new Set(items.map((i) => i.userEmail).filter((e): e is string => !!e))];
+    const people = names.length
+      ? await this.prisma.employee.findMany({
+          where: {
+            deletedAt: undefined,
+            level: { not: null },
+            OR: [{ fullName: { in: names } }, { officialEmail: { in: emails } }],
+          },
+          select: { fullName: true, officialEmail: true, level: true },
+        })
+      : [];
+    const byEmail = new Map(people.filter((p) => p.officialEmail).map((p) => [p.officialEmail!.toLowerCase(), p.level]));
+    const byName = new Map(people.map((p) => [p.fullName.toLowerCase(), p.level]));
+
     return {
       // BigInt ids are not JSON-serialisable.
-      items: items.map((i) => ({ ...i, id: i.id.toString() })),
+      items: items.map((i) => ({
+        ...i,
+        id: i.id.toString(),
+        userLevel: (i.userEmail && byEmail.get(i.userEmail.toLowerCase())) ?? byName.get((i.userName ?? '').toLowerCase()) ?? null,
+      })),
       page: Number(page) || 1,
       pageSize: take,
       total,

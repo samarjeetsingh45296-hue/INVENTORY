@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Avatar, PageHeader, StatusBadge, ErrorNote, EmptyState } from '@/components/ui';
+import { Avatar, PageHeader, StatusBadge, ErrorNote, EmptyState, LevelChip } from '@/components/ui';
 
 interface Employee {
   id: string;
   employeeCode: string;
   fullName: string;
+  level: string | null;
   officialEmail: string | null;
   phone: string | null;
   employmentStatus: string;
@@ -70,6 +71,7 @@ export default function EmployeesPage() {
               <tr>
                 <th className="th">Code</th>
                 <th className="th">Name</th>
+                <th className="th">Level</th>
                 <th className="th">Department</th>
                 <th className="th">Designation</th>
                 <th className="th">Branch</th>
@@ -90,6 +92,7 @@ export default function EmployeesPage() {
                       {e.fullName}
                     </Link>
                   </td>
+                  <td className="td">{e.level ? <LevelChip level={e.level} /> : <span className="text-[rgb(var(--muted))]">-</span>}</td>
                   <td className="td">{e.department?.name ?? '-'}</td>
                   <td className="td">{e.designation?.name ?? '-'}</td>
                   <td className="td">{e.branch?.name ?? '-'}</td>

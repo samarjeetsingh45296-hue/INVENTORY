@@ -55,11 +55,27 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       for (const rp of ur.role.permissions) permissions.add(rp.permission.key);
     }
 
+    // The account's team level: from its linked employee, else the person in
+    // the master sheet with the same email or name. Null when unknown.
+    const person = await this.prisma.employee.findFirst({
+      where: {
+        deletedAt: undefined,
+        level: { not: null },
+        OR: [
+          ...(user.employeeId ? [{ id: user.employeeId }] : []),
+          { officialEmail: { equals: user.email, mode: 'insensitive' as const } },
+          { fullName: { equals: user.displayName, mode: 'insensitive' as const } },
+        ],
+      },
+      select: { level: true },
+    });
+
     return {
       userId: user.id,
       email: user.email,
       displayName: user.displayName,
       employeeId: user.employeeId,
+      level: person?.level ?? null,
       roleKeys: activeRoles.map((ur) => ur.role.key),
       permissions: [...permissions],
       branchScope: user.scopes.map((s) => s.branchId),

@@ -70,7 +70,7 @@ export class EmployeesService {
         branch: true,
         department: true,
         designation: true,
-        reportingManager: { select: { id: true, fullName: true, employeeCode: true } },
+        reportingManager: { select: { id: true, fullName: true, employeeCode: true, level: true} },
         allocations: {
           where: { status: 'ACTIVE' },
           include: { asset: { include: { category: true } } },

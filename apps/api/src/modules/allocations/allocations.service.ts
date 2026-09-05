@@ -330,7 +330,7 @@ export class AllocationsService {
     const [allocations, events] = await Promise.all([
       this.prisma.assetAllocation.findMany({
         where: { assetId },
-        include: { employee: { select: { fullName: true, employeeCode: true } } },
+        include: { employee: { select: { fullName: true, employeeCode: true, level: true} } },
         orderBy: { allocatedAt: 'desc' },
       }),
       this.prisma.assetEvent.findMany({

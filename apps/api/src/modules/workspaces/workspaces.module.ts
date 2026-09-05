@@ -101,7 +101,7 @@ class WorkstationsController {
     // The name-plates: each is an employee whose own equipment shows when the
     // plate is clicked.
     const plates = [] as Array<{
-      name: string; employeeId: string | null;
+      name: string; employeeId: string | null; level: string | null;
       equipment: Array<{ id: string; assetTag: string; model: string | null;
         serialNumber: string | null; category: { name: string } }>;
     }>;
@@ -110,6 +110,7 @@ class WorkstationsController {
         where: { fullName: { equals: name, mode: 'insensitive' }, deletedAt: undefined },
         select: {
           id: true,
+          level: true,
           allocations: {
             where: { status: AllocationStatus.ACTIVE },
             select: {
@@ -126,6 +127,7 @@ class WorkstationsController {
       plates.push({
         name,
         employeeId: emp?.id ?? null,
+        level: emp?.level ?? null,
         equipment: (emp?.allocations ?? []).map((a) => a.asset)
           .sort((a, b) => a.category.name.localeCompare(b.category.name)),
       });
@@ -165,7 +167,7 @@ class WorkstationsController {
           location: { select: { id: true, name: true } },
           allocations: {
             where: { status: AllocationStatus.ACTIVE },
-            include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+            include: { employee: { select: { id: true, fullName: true, employeeCode: true, level: true} } },
           },
         },
         orderBy: { seatCode: 'asc' },
@@ -552,7 +554,7 @@ class WorkstationsController {
       where: { assetId, employeeId, status: AllocationStatus.ACTIVE },
       include: {
         asset: { include: { category: { select: { name: true } } } },
-        employee: { select: { fullName: true } },
+        employee: { select: { fullName: true, level: true} },
       },
     });
     if (!allocation) throw new NotFoundException('That item is not held there any more.');

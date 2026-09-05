@@ -49,7 +49,7 @@ class VouchersController {
       this.prisma.voucher.findMany({
         where,
         include: {
-          issuedTo: { select: { id: true, fullName: true, employeeCode: true } },
+          issuedTo: { select: { id: true, fullName: true, employeeCode: true, level: true} },
         },
         // Serial number is the card's position in the drawer, so ordering by
         // it lists the cards the way somebody counting them would.
@@ -118,7 +118,7 @@ class VouchersController {
         notes: body.notes ?? voucher.notes,
         updatedById: user.userId,
       },
-      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true } } },
+      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true, level: true} } },
     });
 
     await this.audit.record({
@@ -156,7 +156,7 @@ class VouchersController {
     const updated = await this.prisma.voucher.update({
       where: { id },
       data: { issuedToName: name || null, updatedById: user.userId },
-      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true } } },
+      include: { issuedTo: { select: { id: true, fullName: true, employeeCode: true, level: true} } },
     });
 
     await this.audit.record({

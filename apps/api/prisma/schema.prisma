@@ -546,6 +546,9 @@ model Employee {
   process          String?
   shift            String?
   seatNumber       String?
+  /// Team level from the master sheet (L1, L2, L3, IO, TL, QA, HR ...). Shown
+  /// beside the name everywhere, so nobody has to cross-check the sheet.
+  level            String?
 
   photoUrl         String?
   address          String?
@@ -580,6 +583,7 @@ model Employee {
   @@index([phone])
   @@index([branchId, departmentId])
   @@index([employmentStatus])
+  @@index([level])
   @@index([deletedAt])
   @@map("employees")
 }

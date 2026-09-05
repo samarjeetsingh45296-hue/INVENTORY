@@ -6,13 +6,14 @@ import { format } from 'date-fns';
 import { Eye, Pencil, UserCog, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Avatar, PageHeader, ErrorNote, TableSkeleton } from '@/components/ui';
+import { Avatar, PageHeader, ErrorNote, TableSkeleton, Person } from '@/components/ui';
 import { PasswordInput } from '@/components/password-input';
 
 interface Row {
   id: string;
   email: string;
   displayName: string;
+  level: string | null;
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -180,7 +181,7 @@ export default function UsersPage() {
                     <td className="td font-medium text-[rgb(var(--text))]">
                       <span className="inline-flex items-center gap-2">
                         <Avatar name={u.displayName} />
-                        {u.displayName}
+                        <Person name={u.displayName} level={u.level} />
                         {self && <span className="badge-info">you</span>}
                         {!u.isActive && <span className="badge-bad">disabled</span>}
                       </span>

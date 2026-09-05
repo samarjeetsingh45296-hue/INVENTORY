@@ -55,7 +55,7 @@ class LockersController {
           branch: { select: { name: true } },
           allocations: {
             where: { status: AllocationStatus.ACTIVE },
-            include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+            include: { employee: { select: { id: true, fullName: true, employeeCode: true, level: true} } },
           },
         },
         orderBy: { lockerNo: 'asc' },
@@ -73,7 +73,7 @@ class LockersController {
   history(@Param('id') id: string) {
     return this.prisma.lockerAllocation.findMany({
       where: { lockerId: id },
-      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      include: { employee: { select: { fullName: true, employeeCode: true, level: true} } },
       orderBy: { allocatedAt: 'desc' },
     });
   }
@@ -89,7 +89,7 @@ class LockersController {
       const locker = await tx.locker.findFirstOrThrow({ where: { id } });
       const open = await tx.lockerAllocation.findFirst({
         where: { lockerId: id, status: AllocationStatus.ACTIVE },
-        include: { employee: { select: { fullName: true } } },
+        include: { employee: { select: { fullName: true, level: true} } },
       });
       if (open) {
         throw new Error(
@@ -133,7 +133,7 @@ class LockersController {
       const locker = await tx.locker.findFirstOrThrow({ where: { id } });
       const open = await tx.lockerAllocation.findFirst({
         where: { lockerId: id, status: AllocationStatus.ACTIVE },
-        include: { employee: { select: { fullName: true } } },
+        include: { employee: { select: { fullName: true, level: true} } },
       });
       if (!open) throw new Error(`Locker ${locker.lockerNo} is not currently held by anyone.`);
 

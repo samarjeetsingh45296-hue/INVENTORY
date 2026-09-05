@@ -57,7 +57,7 @@ class RepairsController {
             },
           },
           vendor: { select: { name: true } },
-          reportedBy: { select: { fullName: true, employeeCode: true } },
+          reportedBy: { select: { fullName: true, employeeCode: true, level: true} },
         },
         orderBy: { reportedAt: 'desc' },
         take,

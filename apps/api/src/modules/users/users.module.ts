@@ -44,11 +44,29 @@ class UsersController {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Accounts are not linked to employee records, so each one's team level
+    // comes from the master-sheet person with the same email, else the same
+    // name. Wrong-or-missing shows as no chip rather than a guess.
+    const people = await this.prisma.employee.findMany({
+      where: {
+        deletedAt: undefined,
+        level: { not: null },
+        OR: [
+          { officialEmail: { in: users.map((u) => u.email) } },
+          { fullName: { in: users.map((u) => u.displayName) } },
+        ],
+      },
+      select: { fullName: true, officialEmail: true, level: true },
+    });
+    const byEmail = new Map(people.filter((p) => p.officialEmail).map((p) => [p.officialEmail!.toLowerCase(), p.level]));
+    const byName = new Map(people.map((p) => [p.fullName.toLowerCase(), p.level]));
+
     // Hashes and MFA material never leave the server.
     return users.map((u) => ({
       id: u.id,
       email: u.email,
       displayName: u.displayName,
+      level: byEmail.get(u.email.toLowerCase()) ?? byName.get(u.displayName.toLowerCase()) ?? null,
       isActive: u.isActive,
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,

@@ -51,6 +51,7 @@ export class ExportService {
       Employees: employees.map((e) => ({
         'Employee Code': e.employeeCode,
         Name: e.fullName,
+        Level: e.level ?? '',
         Email: e.officialEmail,
         Phone: e.phone,
         Branch: e.branch?.name ?? '',
@@ -80,6 +81,7 @@ export class ExportService {
         'Asset Tag': al.asset.assetTag,
         'Employee Code': al.employee?.employeeCode ?? al.holderLabel ?? '',
         'Employee Name': al.employee?.fullName ?? '',
+        Level: al.employee?.level ?? '',
         Status: al.status,
         'Allocated On': al.allocatedAt,
         'Returned On': al.returnedAt,

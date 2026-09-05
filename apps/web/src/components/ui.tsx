@@ -194,3 +194,40 @@ export function Field({
     </label>
   );
 }
+
+/**
+ * Team level chip - L1, L2, L3, IO, TL... - from the master sheet. Rendered
+ * beside every person's name so a level is verified where the name is read,
+ * never by opening another page. Renders nothing when the level is unknown,
+ * rather than guessing.
+ */
+export function LevelChip({ level, className }: { level?: string | null; className?: string }) {
+  if (!level) return null;
+  return (
+    <span
+      className={clsx(
+        'inline-flex h-[18px] shrink-0 items-center rounded-[5px] border px-1.5',
+        'font-mono text-[10px] font-semibold uppercase leading-none tracking-wide',
+        'border-[rgb(var(--border-hard))] bg-[rgb(var(--surface-3))] text-[rgb(var(--text-2))]',
+        className,
+      )}
+      title={`Level ${level}`}
+      aria-label={`Level ${level}`}
+    >
+      {level}
+    </span>
+  );
+}
+
+/** A person's name with their level chip - the one way names are written. */
+export function Person({
+  name, level, code, className,
+}: { name: string; level?: string | null; code?: string | null; className?: string }) {
+  return (
+    <span className={clsx('inline-flex flex-wrap items-center gap-1.5', className)}>
+      <span>{name}</span>
+      <LevelChip level={level} />
+      {code && <span className="font-mono text-[11px] text-[rgb(var(--muted))]">{code}</span>}
+    </span>
+  );
+}

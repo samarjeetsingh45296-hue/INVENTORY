@@ -71,7 +71,7 @@ export class AssetsService {
           location: { select: { id: true, name: true, path: true } },
           allocations: {
             where: { status: 'ACTIVE' },
-            include: { employee: { select: { fullName: true, employeeCode: true } } },
+            include: { employee: { select: { fullName: true, employeeCode: true, level: true} } },
           },
         },
         orderBy: { assetTag: 'asc' },
@@ -131,7 +131,7 @@ export class AssetsService {
         vendor: true,
         components: true,
         allocations: {
-          include: { employee: { select: { fullName: true, employeeCode: true } } },
+          include: { employee: { select: { fullName: true, employeeCode: true, level: true} } },
           orderBy: { allocatedAt: 'desc' },
         },
         repairTickets: { orderBy: { reportedAt: 'desc' } },

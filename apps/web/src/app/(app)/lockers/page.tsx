@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Search, KeyRound } from 'lucide-react';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard, Person } from '@/components/ui';
 
 interface Row {
   id: string;
@@ -17,7 +17,7 @@ interface Row {
   allocations: Array<{
     id: string;
     keyIssued: boolean;
-    employee: { id: string; fullName: string; employeeCode: string } | null;
+    employee: { id: string; fullName: string; employeeCode: string; level: string | null } | null;
   }>;
 }
 interface Page { items: Row[]; page: number; total: number; totalPages: number }
@@ -104,7 +104,7 @@ export default function LockersPage() {
                       <td className="td">
                         {a?.employee ? (
                           <Link href={`/employees/${a.employee.id}`} className="link">
-                            {a.employee.fullName}
+                            <Person name={a.employee.fullName} level={a.employee.level} />
                           </Link>
                         ) : <span className="text-[rgb(var(--muted))]">free</span>}
                       </td>

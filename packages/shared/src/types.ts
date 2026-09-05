@@ -30,6 +30,8 @@ export interface Principal {
   email: string;
   displayName: string;
   employeeId: string | null;
+  /** Team level from the master sheet, when this account matches a person. */
+  level: string | null;
   roleKeys: string[];
   permissions: string[];
   /** Empty array = unrestricted across every branch. */

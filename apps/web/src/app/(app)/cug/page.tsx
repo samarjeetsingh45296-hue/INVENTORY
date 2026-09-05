@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Search, Smartphone } from 'lucide-react';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard, Person } from '@/components/ui';
 
 interface Row {
   id: string;
@@ -16,7 +16,7 @@ interface Row {
   branch: { name: string } | null;
   allocations: Array<{
     id: string;
-    employee: { id: string; fullName: string; employeeCode: string; process: string | null } | null;
+    employee: { id: string; fullName: string; employeeCode: string; process: string | null; level: string | null } | null;
   }>;
 }
 
@@ -105,7 +105,7 @@ export default function CugPage() {
                       <td className="td">
                         {holder ? (
                           <Link href={`/employees/${holder.id}`} className="link">
-                            {holder.fullName}
+                            <Person name={holder.fullName} level={holder.level} />
                           </Link>
                         ) : <span className="text-[rgb(var(--muted))]">unassigned</span>}
                       </td>

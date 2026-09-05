@@ -4,7 +4,7 @@ import { Fragment, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, EmptyState } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, EmptyState, Person } from '@/components/ui';
 
 interface AuditRow {
   id: string;
@@ -13,6 +13,7 @@ interface AuditRow {
   entityId: string | null;
   entityLabel: string | null;
   userName: string;
+  userLevel: string | null;
   userEmail: string | null;
   ipAddress: string | null;
   changedFields: string[];
@@ -105,7 +106,7 @@ export default function AuditPage() {
                     <td className="td whitespace-nowrap">
                       {format(new Date(row.createdAt), 'd MMM yyyy, HH:mm')}
                     </td>
-                    <td className="td">{row.userName}</td>
+                    <td className="td"><Person name={row.userName} level={row.userLevel} /></td>
                     <td className="td"><StatusBadge status={row.action} /></td>
                     <td className="td">
                       {row.entityLabel ?? row.entityType}

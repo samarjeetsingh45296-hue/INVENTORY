@@ -30,7 +30,7 @@ export class AllocationsController {
       },
       include: {
         asset: { include: { category: true } },
-        employee: { select: { fullName: true, employeeCode: true } },
+        employee: { select: { fullName: true, employeeCode: true, level: true} },
       },
       orderBy: { allocatedAt: 'desc' },
       take: Math.min(Number(take) || 50, 200),

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Avatar } from '@/components/ui';
+import { Avatar, LevelChip } from '@/components/ui';
 
 interface NavItem {
   href: string;
@@ -144,7 +144,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
             <Avatar name={user.displayName} size="lg" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-medium leading-tight">{user.displayName}</p>
+              <p className="flex items-center gap-1.5 truncate text-[12px] font-medium leading-tight">
+                <span className="truncate">{user.displayName}</span>
+                <LevelChip level={user.level} />
+              </p>
               <p className="truncate text-[10px] leading-tight text-[rgb(var(--muted))]">{user.email}</p>
             </div>
           </div>

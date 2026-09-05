@@ -8,7 +8,7 @@ import { Search, Ticket, Pencil } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
-  PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard,
+  PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard, Person,
 } from '@/components/ui';
 
 interface Row {
@@ -21,7 +21,7 @@ interface Row {
   issuedToName: string | null;
   issuedByName: string | null;
   notes: string | null;
-  issuedTo: { id: string; fullName: string; employeeCode: string } | null;
+  issuedTo: { id: string; fullName: string; employeeCode: string; level: string | null } | null;
 }
 
 interface Page {
@@ -200,7 +200,7 @@ export default function VouchersPage() {
                     <td className="td">
                       {v.issuedTo ? (
                         <Link href={`/employees/${v.issuedTo.id}`} className="link">
-                          {v.issuedTo.fullName}
+                          <Person name={v.issuedTo.fullName} level={v.issuedTo.level} />
                         </Link>
                       ) : v.issuedToName ? (
                         <span className="inline-flex items-center gap-1.5">

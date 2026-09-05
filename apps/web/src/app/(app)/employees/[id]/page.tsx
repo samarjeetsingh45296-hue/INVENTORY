@@ -5,12 +5,13 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, Boxes, KeyRound, Smartphone, Armchair } from 'lucide-react';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, StatCard } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, StatCard, LevelChip } from '@/components/ui';
 
 interface Detail {
   id: string;
   employeeCode: string;
   fullName: string;
+  level: string | null;
   officialEmail: string | null;
   phone: string | null;
   employmentStatus: string;
@@ -72,7 +73,16 @@ export default function EmployeeDetailPage() {
                 .filter(Boolean).join('  -  ')
             : undefined
         }
-        actions={e ? <StatusBadge status={e.employmentStatus} /> : undefined}
+        actions={e ? (
+          <span className="inline-flex items-center gap-2">
+            {e.level && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[rgb(var(--muted))]">
+                Level <LevelChip level={e.level} />
+              </span>
+            )}
+            <StatusBadge status={e.employmentStatus} />
+          </span>
+        ) : undefined}
       />
 
       {noMis && (

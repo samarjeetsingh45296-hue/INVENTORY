@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { useRealtime } from '@/hooks/use-realtime';
 import { useAuth } from '@/lib/auth';
 import {
-  PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton,
+  PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, Person,
 } from '@/components/ui';
 import { AssetForm, type AssetRow } from './asset-form';
 
@@ -18,7 +18,7 @@ interface Row extends AssetRow {
   allocations: Array<{
     id: string;
     holderLabel: string | null;
-    employee: { fullName: string; employeeCode: string } | null;
+    employee: { fullName: string; employeeCode: string; level: string | null } | null;
   }>;
 }
 
@@ -189,7 +189,7 @@ export default function AssetsPage() {
                       <td className="td"><StatusBadge status={a.status} /></td>
                       <td className="td">
                         {holder?.employee
-                          ? `${holder.employee.fullName} (${holder.employee.employeeCode})`
+                          ? <Person name={holder.employee.fullName} level={holder.employee.level} code={holder.employee.employeeCode} />
                           : (holder?.holderLabel ?? '-')}
                       </td>
                       <td className="td">{a.location?.name ?? a.branch?.name ?? '-'}</td>

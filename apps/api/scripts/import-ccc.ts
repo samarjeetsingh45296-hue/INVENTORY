@@ -127,6 +127,7 @@ async function upsertEmployee(
     // carries it. Anything a human or an earlier tab already set is kept.
     const gaps: Record<string, string> = {};
     if (!existing.process && extra.process) gaps.process = extra.process;
+    if (!existing.level && extra.level) gaps.level = extra.level.trim().toUpperCase();
     if (Object.keys(gaps).length && !DRY) {
       await prisma.employee.update({ where: { id: existing.id }, data: gaps });
       bump(c, 'employeesBackfilled');
@@ -151,6 +152,9 @@ async function upsertEmployee(
       fullName: name.replace(/\s+/g, ' ').trim(),
       employmentStatus: EmploymentStatus.ACTIVE,
       process: extra.process || null,
+      // The sheet's Level lands in its own column - shown beside the name
+      // everywhere - and stays in remarks below as provenance.
+      level: extra.level ? extra.level.trim().toUpperCase() : null,
       remarks: [
         extra.level ? `Level: ${extra.level}` : '',
         extra.institute ? `Institute: ${extra.institute}` : '',
