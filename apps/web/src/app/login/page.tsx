@@ -5,6 +5,83 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { PasswordInput } from '@/components/password-input';
+import { AlertCircle } from 'lucide-react';
+
+/** What went wrong, said inside the card. `fields` are the inputs to tint. */
+interface Fault {
+  title: string;
+  detail: string;
+  fields: Array<'email' | 'password' | 'code'>;
+}
+
+function faultFor(err: unknown, step: Step): Fault {
+  if (step === 'mfa') {
+    return {
+      title: err instanceof ApiError && err.status !== 401 ? err.message : "That code didn't match.",
+      detail: 'Check your authenticator app and enter the current code.',
+      fields: ['code'],
+    };
+  }
+  if (err instanceof ApiError && err.status === 401) {
+    return {
+      title: 'Invalid email or password.',
+      detail: 'Please verify your credentials and try again.',
+      fields: ['email', 'password'],
+    };
+  }
+  if (err instanceof ApiError && err.status === 403) {
+    return { title: err.message, detail: 'Contact your administrator if this is unexpected.', fields: [] };
+  }
+  if (err instanceof ApiError && err.status === 429) {
+    return { title: 'Too many attempts.', detail: 'Please wait a moment before trying again.', fields: [] };
+  }
+  return {
+    title: 'Could not sign in.',
+    detail: err instanceof ApiError ? err.message : 'Please check your connection and try again.',
+    fields: [],
+  };
+}
+
+/**
+ * The inline error. It grows into the card (250-350ms, soft ease, a few
+ * pixels of rise) and folds back the same way; the node stays until the
+ * fold has finished so nothing beneath it jumps.
+ */
+function InlineError({
+  fault, shown, onGone,
+}: { fault: Fault | null; shown: boolean; onGone: () => void }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!shown) { setOn(false); return; }
+    // One tick after mount, so the node starts collapsed and transitions
+    // open. A timer, not a frame: background tabs still get their frame
+    // later, and the message must never be left waiting on one.
+    const id = window.setTimeout(() => setOn(true), 20);
+    return () => window.clearTimeout(id);
+  }, [shown, fault]);
+  if (!fault) return null;
+  return (
+    <div
+      className="si-fault"
+      data-show={on || undefined}
+      onTransitionEnd={(e) => {
+        if (!shown && e.target === e.currentTarget && e.propertyName === 'opacity') onGone();
+      }}
+    >
+      <div className="si-fault-clip">
+        <div className="si-fault-box" role="alert" aria-live="polite">
+          <span className="si-fault-ico" aria-hidden>
+            <AlertCircle size={15} strokeWidth={2.2} />
+          </span>
+          <span className="si-fault-text">
+            <span className="si-fault-title">{fault.title}</span>
+            <span className="si-fault-detail">{fault.detail}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Step = 'credentials' | 'mfa' | 'enrol';
 
@@ -184,14 +261,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [fault, setFault] = useState<Fault | null>(null);
+  const [faultShown, setFaultShown] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  /** Typing hides the message; the person is already fixing it. */
+  const hideFault = () => { if (faultShown) setFaultShown(false); };
+  const invalid = (f: 'email' | 'password' | 'code') =>
+    faultShown && fault?.fields.includes(f) ? true : undefined;
 
   /** Fade the current stack out, swap, and let the next one rise in. */
   const go = (next: Step) => {
     setLeaving(true);
     window.setTimeout(() => {
-      setError(null);
+      setFault(null);
+      setFaultShown(false);
       setStep(next);
       setLeaving(false);
     }, 260);
@@ -203,7 +287,9 @@ export default function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+    // A previous message fades out while the new attempt runs; a new one
+    // takes its place if this attempt fails too. Inputs are never touched.
+    setFaultShown(false);
     setBusy(true);
     try {
       if (step === 'credentials') {
@@ -216,7 +302,8 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not sign in. Please try again.');
+      setFault(faultFor(err, step));
+      setFaultShown(true);
     } finally {
       setBusy(false);
     }
@@ -294,7 +381,8 @@ export default function LoginPage() {
                       autoComplete="username"
                       required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      data-invalid={invalid('email')}
+                      onChange={(e) => { setEmail(e.target.value); hideFault(); }}
                     />
                   </Rise>
                   <Rise d={0.12}>
@@ -304,9 +392,11 @@ export default function LoginPage() {
                       autoComplete="current-password"
                       required
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      data-invalid={invalid('password')}
+                      onChange={(e) => { setPassword(e.target.value); hideFault(); }}
                     />
                   </Rise>
+                  <InlineError fault={fault} shown={faultShown} onGone={() => setFault(null)} />
                   <Rise d={0.18} className="pt-2">
                     <button type="submit" className="si-cta" disabled={busy}>
                       <span className="si-shine" aria-hidden />
@@ -316,12 +406,6 @@ export default function LoginPage() {
                   <Rise d={0.24} className="pt-6">
                     <BlobRow />
                   </Rise>
-
-                  {error && (
-                    <div className="si-in" style={{ '--d': '0s' } as React.CSSProperties}>
-                      <p role="alert" className="si-error">{error}</p>
-                    </div>
-                  )}
                 </form>
               </>
             )}
@@ -344,20 +428,17 @@ export default function LoginPage() {
                     autoComplete="one-time-code"
                     required
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    data-invalid={invalid('code')}
+                    onChange={(e) => { setCode(e.target.value); hideFault(); }}
                   />
                 </Rise>
+                <InlineError fault={fault} shown={faultShown} onGone={() => setFault(null)} />
                 <Rise d={0.12} className="pt-2">
                   <button type="submit" className="si-cta" disabled={busy}>
                     <span className="si-shine" aria-hidden />
                     <span>{busy ? 'Verifying...' : 'Verify'}</span>
                   </button>
                 </Rise>
-                {error && (
-                  <div className="si-in" style={{ '--d': '0s' } as React.CSSProperties}>
-                    <p role="alert" className="si-error">{error}</p>
-                  </div>
-                )}
                 <Rise d={0.18} className="pt-2">
                   <p className="text-center text-[13.5px] text-[#8e8e93]">
                     Wrong account?{' '}
