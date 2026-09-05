@@ -22,6 +22,8 @@ export class EmployeesService {
     departmentId?: string;
     status?: string;
     includeArchived?: boolean;
+    /** The Employees screen's team selector: 'ops' or 'counselor'. */
+    team?: string;
     principal: Principal;
   }) {
     const { page, pageSize, search, principal } = params;
@@ -32,6 +34,14 @@ export class EmployeesService {
       ...(principal.branchScope.length
         ? { branchId: { in: principal.branchScope } }
         : {}),
+      // Teams as the master sheet records them: Operations is the "Ops Team"
+      // department; counsellors are everyone on the Domestic and
+      // International calling processes.
+      ...(params.team === 'ops'
+        ? { department: { name: { equals: 'Ops Team', mode: 'insensitive' } } }
+        : params.team === 'counselor'
+          ? { process: { in: ['Domestic', 'International'], mode: 'insensitive' } }
+          : {}),
       ...(params.branchId ? { branchId: params.branchId } : {}),
       ...(params.departmentId ? { departmentId: params.departmentId } : {}),
       ...(params.status ? { employmentStatus: params.status as never } : {}),

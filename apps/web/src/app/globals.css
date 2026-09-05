@@ -739,3 +739,185 @@ select.fv-input { appearance: auto; color-scheme: dark; }
 @media (prefers-reduced-motion: reduce) {
   .si-blob, .si-blob-body, .si-blob-eye { animation: none; }
 }
+
+
+/* ---------------------------------------------------------------------------
+   Employees: team selector.
+
+   A dark pill at the left of the section. It arrives from the left (scale
+   0.95, slightly low, faded) and opens by itself into a floating panel that
+   lists the two teams; the menu grows out of the pill with a soft spring, a
+   lighter pill slides between options under the pointer, and a choice folds
+   the panel back into the pill.
+   ------------------------------------------------------------------------- */
+.es-root {
+  position: relative;
+  z-index: 20;
+  width: max-content;
+  animation: es-arrive 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes es-arrive {
+  from { opacity: 0; transform: translate(-14px, 6px) scale(0.95); }
+  to   { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+.es-morph {
+  position: relative;
+  width: 232px;
+  height: 44px;
+  border-radius: 999px;
+  background: #161618;
+  color: #f1f1f2;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 10px 30px -12px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  transition:
+    width 0.42s cubic-bezier(0.34, 1.4, 0.64, 1),
+    height 0.42s cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-radius 0.34s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.4s ease;
+}
+.es-root[data-open] .es-morph {
+  width: 318px;
+  height: 178px;
+  border-radius: 22px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 60px -18px rgba(0, 0, 0, 0.7),
+    0 8px 20px -8px rgba(0, 0, 0, 0.5);
+}
+/* Glass depth: a soft light bloom at the top of the panel */
+.es-morph::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.09), transparent 60%);
+  pointer-events: none;
+}
+
+/* Closed face */
+.es-pill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: #f1f1f2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.18s ease, transform 0.3s ease;
+}
+.es-pill:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: -4px; }
+.es-pill-check { color: #7ee2a8; }
+.es-pill-chev { margin-left: auto; color: #8a8a8e; transition: transform 0.3s ease; }
+.es-pill:hover .es-pill-chev { transform: translateY(1px); }
+.es-root[data-open] .es-pill {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.2s ease;
+}
+
+/* Open face */
+.es-menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.2s ease;
+}
+.es-root[data-open] .es-menu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition: opacity 0.22s ease 0.1s, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s;
+}
+.es-head {
+  padding: 0 10px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f6f74;
+}
+.es-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.es-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px 9px 12px;
+  border-radius: 12px;
+  text-align: left;
+  color: #a4a4a9;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: color 0.18s ease;
+}
+.es-root[data-open] .es-item {
+  animation: es-item-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(0.14s + var(--i, 0) * 0.06s);
+}
+@keyframes es-item-in {
+  to { opacity: 1; transform: none; }
+}
+.es-item:hover, .es-item:focus-visible, .es-item[aria-selected='true'] { color: #fbfbfc; outline: none; }
+.es-ico { flex: none; color: currentColor; opacity: 0.85; }
+.es-text { display: flex; flex-direction: column; line-height: 1.2; }
+.es-label { font-size: 13.5px; font-weight: 600; }
+.es-hint { font-size: 11px; color: #75757b; margin-top: 2px; }
+.es-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #8a8a8e;
+}
+
+/* The pill that slides magnetically between options */
+.es-hover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 12px;
+  background: #2a2a2d;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  transition:
+    top 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 0.2s ease;
+  animation: es-hover-in 0.2s ease both;
+}
+.es-hover[data-pick] { background: #232326; }
+@keyframes es-hover-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The list below arrives after a team is picked */
+.es-body { animation: es-body-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes es-body-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .es-root, .es-item, .es-hover, .es-body { animation: none; opacity: 1; transform: none; }
+  .es-morph, .es-pill, .es-menu, .es-hover { transition: none; }
+}

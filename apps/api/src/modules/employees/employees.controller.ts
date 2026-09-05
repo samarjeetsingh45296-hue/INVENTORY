@@ -21,6 +21,7 @@ export class EmployeesController {
     @Query('departmentId') departmentId?: string,
     @Query('status') status?: string,
     @Query('includeArchived') includeArchived?: string,
+    @Query('team') team?: string,
   ) {
     return this.employees.list({
       page: Number(page) || 1,
@@ -30,6 +31,7 @@ export class EmployeesController {
       departmentId,
       status,
       includeArchived: includeArchived === 'true',
+      team,
       principal,
     });
   }
