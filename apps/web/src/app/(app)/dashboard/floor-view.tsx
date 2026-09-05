@@ -17,7 +17,7 @@ interface Seat {
   id: string; seatCode: string; wing: string; process: string | null;
   missing: string[]; equipment: Item[];
 }
-interface Plate { name: string; employeeId: string | null; equipment: Item[] }
+interface Plate { name: string; employeeId: string | null; level: string | null; equipment: Item[] }
 interface FloorData { seats: Seat[]; plates: Plate[] }
 
 /**
@@ -100,6 +100,8 @@ interface Opened {
   base: string | null;
   kind: 'seat' | 'plate';
   refId: string;
+  /** Team level, for cabins that are a person. */
+  level?: string | null;
 }
 
 /** Where a click happened, and the box of the thing that was clicked. */
@@ -213,6 +215,7 @@ function CabinBox({
         onOpen({
           title: name,
           description: 'Cabin',
+          level: plate?.level ?? null,
           missing: [],
           equipment: plate?.equipment ?? [],
           base: plate?.employeeId ? `/workstations/plates/${plate.employeeId}/equipment` : null,
@@ -541,7 +544,7 @@ export function FloorView() {
    over 450ms on a spring curve, with its sections arriving 100ms apart.
    Closing runs the same path backwards, faster. Never a centred modal.
 ------------------------------------------------------------------------- */
-const CARD_W = 400;
+const CARD_W = 440;
 const GAP = 14;
 const MARGIN = 12;
 
@@ -633,14 +636,6 @@ function ContextCard({
       {/* Click-away layer: transparent on purpose - the dashboard stays visible. */}
       <div className="fixed inset-0 z-40" onMouseDown={close} aria-hidden />
 
-      {/* The clicked box keeps glowing, drawn sharp above the softened map. */}
-      <div
-        className="fv-echo fixed z-40"
-        data-closing={closing}
-        style={{ left: anchor.rect.left, top: anchor.rect.top, width: anchor.rect.width, height: anchor.rect.height }}
-        aria-hidden
-      />
-
       <div
         ref={ref}
         role="dialog"
@@ -653,7 +648,15 @@ function ContextCard({
         {/* Header */}
         <div className="fv-sec flex items-start gap-3 px-5 pt-5" style={{ '--i': 0 } as React.CSSProperties}>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[15px] font-semibold tracking-tight text-white">{opened.title}</h3>
+            <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-white">
+              <span className="truncate">{opened.title}</span>
+              {opened.level && (
+                <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] border border-white/15 bg-white/10 px-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-white/85"
+                      title={`Level ${opened.level}`}>
+                  {opened.level}
+                </span>
+              )}
+            </h3>
             <div className="mt-1 flex items-center gap-2 text-[12px] text-white/55">
               <span className={`fv-dot fv-dot-${status.tone}`} />
               <span>{status.label}</span>

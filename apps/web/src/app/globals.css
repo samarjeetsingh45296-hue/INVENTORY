@@ -485,24 +485,8 @@ body {
 .fv-map { transition: filter 0.35s ease, opacity 0.35s ease; }
 .fv-map[data-dim='true'] { filter: blur(4px); opacity: 0.85; }
 
-/* The clicked box, redrawn sharp above the blurred map, pulsing */
-.fv-echo {
-  pointer-events: none;
-  border-radius: 6px;
-  box-shadow:
-    0 0 0 2px rgb(255 255 255 / 0.9),
-    0 0 0 6px rgb(255 255 255 / 0.18),
-    0 0 28px 6px rgb(255 255 255 / 0.28);
-  animation: fv-pulse 1.8s ease-in-out infinite;
-  transition: opacity 0.22s ease;
-}
-.fv-echo[data-closing='true'] { opacity: 0; }
-@keyframes fv-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9), 0 0 0 6px rgb(255 255 255 / 0.18), 0 0 28px 6px rgb(255 255 255 / 0.28); }
-  50%      { box-shadow: 0 0 0 2px rgb(255 255 255 / 0.75), 0 0 0 9px rgb(255 255 255 / 0.10), 0 0 40px 10px rgb(255 255 255 / 0.40); }
-}
-/* The real box underneath also lights up, so the glow survives without the echo */
-.fv-target[data-selected] { outline: 2px solid rgb(255 255 255 / 0.85); outline-offset: 1px; }
+/* No echo, outline or glow on the clicked box: the card beside it is the
+   only thing that marks the selection. */
 
 /* The card */
 .fv-card {
