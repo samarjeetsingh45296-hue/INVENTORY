@@ -219,6 +219,21 @@ export function LevelChip({ level, className }: { level?: string | null; classNa
   );
 }
 
+/**
+ * The team a person belongs to, beside their name. `team` is the selector
+ * id when the person is on one of the four teams, else null with the
+ * department name as the label.
+ */
+export function TeamChip({
+  team, label, className,
+}: { team: string | null; label: string; className?: string }) {
+  return (
+    <span className={clsx('es-chip', className)} data-team={team ?? undefined} title={`Team: ${label}`}>
+      {label}
+    </span>
+  );
+}
+
 /** A person's name with their level chip - the one way names are written. */
 export function Person({
   name, level, code, className,

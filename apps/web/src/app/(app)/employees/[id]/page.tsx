@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, Boxes, KeyRound, Smartphone, Armchair } from 'lucide-react';
 import { api } from '@/lib/api';
-import { PageHeader, StatusBadge, ErrorNote, StatCard, LevelChip } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, StatCard, LevelChip, TeamChip } from '@/components/ui';
+import { teamOf } from '../team-selector';
 
 interface Detail {
   id: string;
@@ -80,6 +81,7 @@ export default function EmployeeDetailPage() {
                 Level <LevelChip level={e.level} />
               </span>
             )}
+            {(() => { const t = teamOf(e); return t ? <TeamChip team={t.id} label={t.label} /> : null; })()}
             <StatusBadge status={e.employmentStatus} />
           </span>
         ) : undefined}

@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Headset, MessagesSquare } from 'lucide-react';
+import { Check, ChevronDown, Globe, Headset, MessagesSquare, ServerCog } from 'lucide-react';
 
-/** The two teams the Employees screen is split into. */
-export type Team = 'ops' | 'counselor';
+/** The teams the Employees screen is split into. */
+export type Team = 'ops' | 'counselor' | 'system' | 'international';
 
 export const TEAMS: Array<{
   id: Team;
@@ -13,11 +13,32 @@ export const TEAMS: Array<{
   Icon: typeof Headset;
 }> = [
   { id: 'ops', label: 'Operations Team', hint: 'Ops Team department', Icon: Headset },
-  { id: 'counselor', label: 'Counselor', hint: 'Domestic and International', Icon: MessagesSquare },
+  { id: 'counselor', label: 'Counselor', hint: 'Domestic calling', Icon: MessagesSquare },
+  { id: 'system', label: 'System Team', hint: 'System Team department', Icon: ServerCog },
+  { id: 'international', label: 'International', hint: 'International calling', Icon: Globe },
 ];
 
 export function teamLabel(team: Team | null) {
   return TEAMS.find((t) => t.id === team)?.label ?? null;
+}
+
+/**
+ * Which team a person belongs to, from the master-sheet fields the API
+ * returns. Departments win over processes; anyone outside the four teams
+ * shows their department name so nothing is left blank.
+ */
+export function teamOf(e: {
+  department?: { name: string } | null;
+  process?: string | null;
+}): { id: Team | null; label: string } | null {
+  const dept = e.department?.name?.trim().toLowerCase();
+  const proc = e.process?.trim().toLowerCase();
+  if (dept === 'ops team') return { id: 'ops', label: 'Operations Team' };
+  if (dept === 'system team') return { id: 'system', label: 'System Team' };
+  if (proc === 'international') return { id: 'international', label: 'International' };
+  if (proc === 'domestic') return { id: 'counselor', label: 'Counselor' };
+  if (e.department?.name) return { id: null, label: e.department.name };
+  return null;
 }
 
 interface Props {
@@ -39,13 +60,26 @@ export function TeamSelector({ value, counts, onChange }: Props) {
   const [open, setOpen] = useState(value === null);
   const [hover, setHover] = useState<Team | null>(null);
   const [pill, setPill] = useState<{ top: number; height: number } | null>(null);
+  const [openHeight, setOpenHeight] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Nothing chosen yet (fresh visit, or the URL lost its team) -> open.
   useEffect(() => {
     if (value === null) setOpen(true);
   }, [value]);
+
+  // The panel grows to whatever the menu needs, so adding a team never clips.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const measure = () => setOpenHeight(menu.scrollHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(menu);
+    return () => ro.disconnect();
+  }, []);
 
   // The pill sits under the hovered option, else the chosen one.
   const target = hover ?? value;
@@ -75,7 +109,12 @@ export function TeamSelector({ value, counts, onChange }: Props) {
   const chosen = TEAMS.find((t) => t.id === value);
 
   return (
-    <div ref={rootRef} className="es-root" data-open={open || undefined}>
+    <div
+      ref={rootRef}
+      className="es-root"
+      data-open={open || undefined}
+      style={openHeight ? ({ '--es-open-h': `${openHeight}px` } as React.CSSProperties) : undefined}
+    >
       <div className="es-morph">
         {/* Closed face: the pill */}
         <button
@@ -97,7 +136,7 @@ export function TeamSelector({ value, counts, onChange }: Props) {
         </button>
 
         {/* Open face: the menu */}
-        <div className="es-menu" aria-hidden={!open}>
+        <div ref={menuRef} className="es-menu" aria-hidden={!open}>
           <div className="es-head">
             <span>Show employees from</span>
           </div>

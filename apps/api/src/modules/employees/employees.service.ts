@@ -6,6 +6,22 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { WS_EVENTS } from '@inventory/shared';
 import type { Principal } from '@inventory/shared';
 
+/** One team of the Employees screen -> the rows it covers. Unknown -> all. */
+function teamWhere(team?: string): Prisma.EmployeeWhereInput {
+  switch (team) {
+    case 'ops':
+      return { department: { name: { equals: 'Ops Team', mode: 'insensitive' } } };
+    case 'system':
+      return { department: { name: { equals: 'System Team', mode: 'insensitive' } } };
+    case 'counselor':
+      return { process: { equals: 'Domestic', mode: 'insensitive' } };
+    case 'international':
+      return { process: { equals: 'International', mode: 'insensitive' } };
+    default:
+      return {};
+  }
+}
+
 @Injectable()
 export class EmployeesService {
   constructor(
@@ -22,7 +38,7 @@ export class EmployeesService {
     departmentId?: string;
     status?: string;
     includeArchived?: boolean;
-    /** The Employees screen's team selector: 'ops' or 'counselor'. */
+    /** The Employees screen's team selector: ops, counselor, system or international. */
     team?: string;
     principal: Principal;
   }) {
@@ -34,14 +50,10 @@ export class EmployeesService {
       ...(principal.branchScope.length
         ? { branchId: { in: principal.branchScope } }
         : {}),
-      // Teams as the master sheet records them: Operations is the "Ops Team"
-      // department; counsellors are everyone on the Domestic and
-      // International calling processes.
-      ...(params.team === 'ops'
-        ? { department: { name: { equals: 'Ops Team', mode: 'insensitive' } } }
-        : params.team === 'counselor'
-          ? { process: { in: ['Domestic', 'International'], mode: 'insensitive' } }
-          : {}),
+      // Teams as the master sheet records them: Operations and System are
+      // departments; counsellors are the Domestic calling process and
+      // International is its own process.
+      ...(teamWhere(params.team)),
       ...(params.branchId ? { branchId: params.branchId } : {}),
       ...(params.departmentId ? { departmentId: params.departmentId } : {}),
       ...(params.status ? { employmentStatus: params.status as never } : {}),

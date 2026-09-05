@@ -764,6 +764,7 @@ select.fv-input { appearance: auto; color-scheme: dark; }
 .es-morph {
   position: relative;
   width: 232px;
+  max-width: calc(100vw - 2rem);
   height: 44px;
   border-radius: 999px;
   background: #161618;
@@ -781,8 +782,8 @@ select.fv-input { appearance: auto; color-scheme: dark; }
     box-shadow 0.3s ease;
 }
 .es-root[data-open] .es-morph {
-  width: 318px;
-  height: 178px;
+  width: min(318px, calc(100vw - 2rem));
+  height: var(--es-open-h, 280px);
   border-radius: 22px;
   /* Reference: ~70% of the growth lands in the first 60ms, settled by 380ms */
   transition:
@@ -836,7 +837,9 @@ select.fv-input { appearance: auto; color-scheme: dark; }
 /* Open face */
 .es-menu {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   padding: 12px 8px 8px;
@@ -917,6 +920,32 @@ select.fv-input { appearance: auto; color-scheme: dark; }
 }
 .es-hover[data-pick] { background: linear-gradient(180deg, #27272a, #1f1f22); }
 @keyframes es-hover-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Team chip beside a name: same footprint as the level chip, tinted per team */
+.es-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid rgb(var(--border-hard));
+  background: rgb(var(--surface-3));
+  color: rgb(var(--text-2));
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.es-chip[data-team='ops']           { color: #c98a2e; border-color: rgba(201, 138, 46, 0.35); background: rgba(201, 138, 46, 0.10); }
+.es-chip[data-team='counselor']     { color: #2f8fe0; border-color: rgba(47, 143, 224, 0.35); background: rgba(47, 143, 224, 0.10); }
+.es-chip[data-team='system']        { color: #8b6fe0; border-color: rgba(139, 111, 224, 0.35); background: rgba(139, 111, 224, 0.10); }
+.es-chip[data-team='international'] { color: #2aa376; border-color: rgba(42, 163, 118, 0.35); background: rgba(42, 163, 118, 0.10); }
+.dark .es-chip[data-team='ops']           { color: #f0b45a; }
+.dark .es-chip[data-team='counselor']     { color: #7dbcf5; }
+.dark .es-chip[data-team='system']        { color: #b7a3f7; }
+.dark .es-chip[data-team='international'] { color: #6fd6a8; }
 
 /* The list below arrives after a team is picked */
 .es-body { animation: es-body-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

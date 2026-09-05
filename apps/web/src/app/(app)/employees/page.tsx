@@ -7,9 +7,9 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
-  Avatar, PageHeader, StatusBadge, ErrorNote, EmptyState, LevelChip, TableSkeleton,
+  Avatar, PageHeader, StatusBadge, ErrorNote, EmptyState, LevelChip, TeamChip, TableSkeleton,
 } from '@/components/ui';
-import { TeamSelector, TEAMS, teamLabel, type Team } from './team-selector';
+import { TeamSelector, TEAMS, teamLabel, teamOf, type Team } from './team-selector';
 
 interface Employee {
   id: string;
@@ -19,6 +19,7 @@ interface Employee {
   officialEmail: string | null;
   phone: string | null;
   employmentStatus: string;
+  process: string | null;
   branch: { name: string } | null;
   department: { name: string } | null;
   designation: { name: string } | null;
@@ -135,7 +136,6 @@ function Employees() {
                   <tr>
                     <th className="th">Code</th>
                     <th className="th">Name</th>
-                    <th className="th">Level</th>
                     <th className="th">Department</th>
                     <th className="th">Designation</th>
                     <th className="th">Branch</th>
@@ -143,21 +143,28 @@ function Employees() {
                     <th className="th">Status</th>
                   </tr>
                 </thead>
-                {query.isLoading ? <TableSkeleton rows={8} cols={8} /> : (
+                {query.isLoading ? <TableSkeleton rows={8} cols={7} /> : (
                   <tbody>
-                    {(query.data?.items ?? []).map((e) => (
+                    {(query.data?.items ?? []).map((e) => {
+                      const t = teamOf(e);
+                      return (
                       <tr key={e.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
                         <td className="td font-mono text-xs">{e.employeeCode}</td>
                         <td className="td font-medium">
                           <Link
                             href={`/employees/${e.id}`}
-                            className="link inline-flex items-center gap-2 text-[rgb(var(--text))]"
+                            className="link inline-flex items-start gap-2 text-[rgb(var(--text))]"
                           >
                             <Avatar name={e.fullName} />
-                            {e.fullName}
+                            <span className="flex flex-col gap-1">
+                              <span>{e.fullName}</span>
+                              <span className="flex flex-wrap items-center gap-1">
+                                <LevelChip level={e.level} />
+                                {t && <TeamChip team={t.id} label={t.label} />}
+                              </span>
+                            </span>
                           </Link>
                         </td>
-                        <td className="td">{e.level ? <LevelChip level={e.level} /> : <span className="text-[rgb(var(--muted))]">-</span>}</td>
                         <td className="td">{e.department?.name ?? '-'}</td>
                         <td className="td">{e.designation?.name ?? '-'}</td>
                         <td className="td">{e.branch?.name ?? '-'}</td>
@@ -167,7 +174,8 @@ function Employees() {
                         </td>
                         <td className="td"><StatusBadge status={e.employmentStatus} /></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 )}
               </table>
