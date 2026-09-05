@@ -32,6 +32,40 @@ const BG_VIDEO = process.env.NEXT_PUBLIC_LOGIN_BG_VIDEO || '/login-bg.mp4';
 const BG_POSTER = process.env.NEXT_PUBLIC_LOGIN_BG_POSTER || '/login-bg.webp';
 const PANEL = { left: 0.120, right: 0.462, top: 0.109, bottom: 0.902 };
 
+/**
+ * The decorative row under the Sign in button: six morphing characters in
+ * brand colours. Shapes and motion live in CSS (.si-blob*); each blob only
+ * carries its colour, eye colour, shape family and phase.
+ */
+const BLOBS: Array<{ c: string; eye: string; shape: 'round' | 'drop' | 'cloud' }> = [
+  { c: '#9a9a9e', eye: '#0b0b0c', shape: 'drop' },
+  { c: '#f4f2ef', eye: '#0b0b0c', shape: 'round' },
+  { c: '#ff2e2e', eye: '#ffffff', shape: 'cloud' },
+  { c: '#2a2a2e', eye: '#ffffff', shape: 'round' },
+  { c: '#ff6b6b', eye: '#0b0b0c', shape: 'drop' },
+  { c: '#d6d6d9', eye: '#0b0b0c', shape: 'cloud' },
+];
+
+function BlobRow() {
+  return (
+    <div className="si-blobs" aria-hidden>
+      {BLOBS.map((b, i) => (
+        <svg
+          key={i}
+          className="si-blob"
+          viewBox="0 0 40 40"
+          data-shape={b.shape}
+          style={{ '--c': b.c, '--eye': b.eye, '--d': `${i * 0.22}s` } as React.CSSProperties}
+        >
+          <path className="si-blob-body" d="M20 4 C28.8 4 36 11.2 36 20 C36 28.8 28.8 36 20 36 C11.2 36 4 28.8 4 20 C4 11.2 11.2 4 20 4 Z" />
+          <rect className="si-blob-eye" x="13.5" y="14" width="4" height="9" rx="2" />
+          <rect className="si-blob-eye" x="22.5" y="14" width="4" height="9" rx="2" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
 /** One item in the entrance stagger. Delay is in seconds. */
 function Rise({ d, className = '', children }: { d: number; className?: string; children: ReactNode }) {
   return (
@@ -278,6 +312,9 @@ export default function LoginPage() {
                       <span className="si-shine" aria-hidden />
                       <span>{busy ? 'Signing in...' : 'Sign in'}</span>
                     </button>
+                  </Rise>
+                  <Rise d={0.24} className="pt-6">
+                    <BlobRow />
                   </Rise>
 
                   {error && (

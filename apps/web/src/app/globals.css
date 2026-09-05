@@ -673,3 +673,82 @@ body {
 .fv-input:hover { border-color: rgb(255 255 255 / 0.18); }
 .fv-input:focus { border-color: rgb(255 46 46 / 0.7); box-shadow: 0 0 0 3px rgb(255 46 46 / 0.14); background: rgb(255 255 255 / 0.08); }
 select.fv-input { appearance: auto; color-scheme: dark; }
+
+/* ---------------------------------------------------------------------------
+   Sign-in: the blob row under the button. Six characters whose outlines are
+   real path geometry morphing in CSS - a circle that swells into a capsule
+   and squashes flat, a teardrop that leans, a cloud that grows lumps - with
+   two pill eyes that blink. Phases step left to right so a wave travels
+   along the row; every keyframe returns to its start, so the loop is
+   seamless. Transforms and path morphs only; nothing measurable in cost.
+--------------------------------------------------------------------------- */
+.si-blobs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 46px;
+}
+.si-blob {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  overflow: visible;
+  animation: si-blob-bob 2.8s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  animation-delay: var(--d, 0s);
+}
+.si-blob-body {
+  fill: var(--c, #f4f2ef);
+  animation-duration: 2.8s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+  animation-iteration-count: infinite;
+  animation-delay: var(--d, 0s);
+}
+.si-blob[data-shape='round']  .si-blob-body { animation-name: si-morph-round; }
+.si-blob[data-shape='drop']   .si-blob-body { animation-name: si-morph-drop; }
+.si-blob[data-shape='cloud']  .si-blob-body { animation-name: si-morph-cloud; }
+
+/* Eyes: tall pills that blink and, on the squash, squint. */
+.si-blob-eye {
+  fill: var(--eye, #0b0b0c);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: si-blink 2.8s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  animation-delay: var(--d, 0s);
+}
+
+/* Circle -> wide capsule -> squashed -> tall -> circle */
+@keyframes si-morph-round {
+  0%, 100% { d: path("M20 4 C28.8 4 36 11.2 36 20 C36 28.8 28.8 36 20 36 C11.2 36 4 28.8 4 20 C4 11.2 11.2 4 20 4 Z"); }
+  25%      { d: path("M20 8 C31 8 38 13 38 20 C38 27 31 32 20 32 C9 32 2 27 2 20 C2 13 9 8 20 8 Z"); }
+  50%      { d: path("M20 11 C33 11 39 15 39 21 C39 27 33 31 20 31 C7 31 1 27 1 21 C1 15 7 11 20 11 Z"); }
+  75%      { d: path("M20 2 C27 2 33 10 33 20 C33 30 27 38 20 38 C13 38 7 30 7 20 C7 10 13 2 20 2 Z"); }
+}
+/* Rounded teardrop that leans right, sags, and comes back */
+@keyframes si-morph-drop {
+  0%, 100% { d: path("M20 3 C24 3 34 24 36 30 C37 34 33 37 20 37 C7 37 3 34 4 30 C6 24 16 3 20 3 Z"); }
+  30%      { d: path("M25 4 C29 4 35 24 37 30 C38 34 34 37 21 37 C8 37 3 34 4 30 C6 24 21 4 25 4 Z"); }
+  60%      { d: path("M20 9 C25 9 35 26 37 31 C38 35 33 37 20 37 C7 37 2 35 3 31 C5 26 15 9 20 9 Z"); }
+}
+/* Lumpy cloud: bulges grow, then it squashes wide */
+@keyframes si-morph-cloud {
+  0%, 100% { d: path("M20 5 C30 3 37 10 36 20 C37 30 30 37 20 35 C10 37 3 30 4 20 C3 10 10 3 20 5 Z"); }
+  33%      { d: path("M20 3 C31 1 39 9 37 20 C39 31 31 39 20 37 C9 39 1 31 3 20 C1 9 9 1 20 3 Z"); }
+  66%      { d: path("M20 9 C32 7 39 13 38 21 C39 30 32 33 20 32 C8 33 1 30 2 21 C1 13 8 7 20 9 Z"); }
+}
+/* A small hop riding the squash, so the row breathes */
+@keyframes si-blob-bob {
+  0%, 100% { translate: 0 0; }
+  25%      { translate: 0 2px; }
+  50%      { translate: 0 3px; }
+  75%      { translate: 0 -3px; }
+}
+@keyframes si-blink {
+  0%, 44%, 56%, 100% { transform: scaleY(1); }
+  50%                { transform: scaleY(0.12); }
+  75%                { transform: scaleY(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-blob, .si-blob-body, .si-blob-eye { animation: none; }
+}
