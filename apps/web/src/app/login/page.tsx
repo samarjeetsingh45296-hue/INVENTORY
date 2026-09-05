@@ -20,6 +20,16 @@ const APP = 'Inventory Manager';
  * screen pixels for whatever size the video is rendered at.
  */
 const VIDEO = { w: 1134, h: 720 };
+
+/**
+ * The backdrop files. The bundled recording is the reference itself and
+ * exists only at 1134x720; a higher-resolution clip with the same framing
+ * can be dropped into public/ and pointed at here, without touching code.
+ * The poster is a still of the same frame, so the first paint is sharp and
+ * never blank while the video decodes.
+ */
+const BG_VIDEO = process.env.NEXT_PUBLIC_LOGIN_BG_VIDEO || '/login-bg.mp4';
+const BG_POSTER = process.env.NEXT_PUBLIC_LOGIN_BG_POSTER || '/login-bg.webp';
 const PANEL = { left: 0.120, right: 0.462, top: 0.109, bottom: 0.902 };
 
 /** One item in the entrance stagger. Delay is in seconds. */
@@ -110,7 +120,8 @@ function Backdrop() {
     <video
       ref={ref}
       className="si-video"
-      src="/login-bg.mp4"
+      src={BG_VIDEO}
+      poster={BG_POSTER}
       autoPlay
       muted
       loop
