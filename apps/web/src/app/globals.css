@@ -464,3 +464,114 @@ body {
   line-height: 1.5;
   color: #ffb4b4;
 }
+
+/* ---------------------------------------------------------------------------
+   Seat-map contextual card. Opens out of the clicked box - scale 0.85 to
+   1.03 to 1, rising 24px, 450ms on a spring - while the map behind softens
+   (4px blur, 85% opacity) and the clicked box keeps glowing above it.
+   Sections arrive 100ms apart. Closing is the same path in reverse, faster.
+--------------------------------------------------------------------------- */
+.fv-map { transition: filter 0.35s ease, opacity 0.35s ease; }
+.fv-map[data-dim='true'] { filter: blur(4px); opacity: 0.85; }
+
+/* The clicked box, redrawn sharp above the blurred map, pulsing */
+.fv-echo {
+  pointer-events: none;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 2px rgb(255 255 255 / 0.9),
+    0 0 0 6px rgb(255 255 255 / 0.18),
+    0 0 28px 6px rgb(255 255 255 / 0.28);
+  animation: fv-pulse 1.8s ease-in-out infinite;
+  transition: opacity 0.22s ease;
+}
+.fv-echo[data-closing='true'] { opacity: 0; }
+@keyframes fv-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9), 0 0 0 6px rgb(255 255 255 / 0.18), 0 0 28px 6px rgb(255 255 255 / 0.28); }
+  50%      { box-shadow: 0 0 0 2px rgb(255 255 255 / 0.75), 0 0 0 9px rgb(255 255 255 / 0.10), 0 0 40px 10px rgb(255 255 255 / 0.40); }
+}
+/* The real box underneath also lights up, so the glow survives without the echo */
+.fv-target[data-selected] { outline: 2px solid rgb(255 255 255 / 0.85); outline-offset: 1px; }
+
+/* The card */
+.fv-card {
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 40%),
+    rgb(22 22 25 / 0.94);
+  backdrop-filter: blur(18px) saturate(1.2);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.10),
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 30px 80px -20px rgb(0 0 0 / 0.70),
+    0 12px 28px -12px rgb(0 0 0 / 0.55);
+  animation: fv-in 450ms cubic-bezier(0.22, 1.28, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+@keyframes fv-in {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.85); filter: blur(6px); }
+  70%  { opacity: 1; transform: translateY(-2px) scale(1.03); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.fv-card[data-closing='true'] {
+  animation: fv-out 220ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+@keyframes fv-out {
+  to { opacity: 0; transform: translateY(10px) scale(0.94); filter: blur(4px); }
+}
+
+/* Sections: header, KPIs, breakdown, footer - 100ms apart */
+.fv-sec {
+  animation: fv-sec 360ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(120ms + var(--i, 0) * 100ms);
+}
+@keyframes fv-sec {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.fv-x {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: rgb(255 255 255 / 0.55);
+  background: rgb(255 255 255 / 0.06);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.fv-x:hover { background: rgb(255 255 255 / 0.12); color: #fff; transform: scale(1.06); }
+
+.fv-dot { width: 7px; height: 7px; border-radius: 999px; box-shadow: 0 0 8px currentColor; }
+.fv-dot-ok { background: #4ade80; color: #4ade80; }
+.fv-dot-warn { background: #fde047; color: #fde047; }
+.fv-dot-muted { background: rgb(255 255 255 / 0.35); color: transparent; }
+
+.fv-bar {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.9));
+  transform-origin: left;
+  animation: fv-bar 600ms cubic-bezier(0.2, 0.8, 0.3, 1) 380ms both;
+}
+@keyframes fv-bar { from { transform: scaleX(0); } }
+
+.fv-btn {
+  height: 34px;
+  padding: 0 13px;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.85);
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+.fv-btn:hover { background: rgb(255 255 255 / 0.12); color: #fff; transform: translateY(-1px); }
+.fv-btn:active { transform: scale(0.97); }
+.fv-btn-primary { background: #ffffff; color: #0b0b0c; border-color: #ffffff; font-weight: 600; }
+.fv-btn-primary:hover { background: #ffffff; color: #000; }
+
+/* The equipment tools inside the card use the shared components on dark tokens */
+.fv-details { max-height: 46vh; overflow: auto; }
+.fv-details .table .th { position: static; }

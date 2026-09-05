@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+} from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Modal, Field, ErrorNote } from '@/components/ui';
+import { Field, ErrorNote } from '@/components/ui';
 
 interface Item {
   id: string; assetTag: string; model: string | null;
@@ -100,6 +103,22 @@ interface Opened {
   refId: string;
 }
 
+/** Where a click happened, and the box of the thing that was clicked. */
+interface Anchor {
+  x: number;
+  y: number;
+  rect: { left: number; top: number; width: number; height: number };
+}
+type OpenFn = (o: Opened, e: React.MouseEvent<HTMLElement>) => void;
+
+const anchorFrom = (e: React.MouseEvent<HTMLElement>): Anchor => {
+  const r = e.currentTarget.getBoundingClientRect();
+  return { x: e.clientX, y: e.clientY, rect: { left: r.left, top: r.top, width: r.width, height: r.height } };
+};
+
+/** The refId of whatever is open, so its box can keep glowing under the card. */
+const SelectedCtx = createContext<string | null>(null);
+
 /** Splits a wing's seats into the two facing rows, ordered as the sheet is. */
 function splitRows(seats: Seat[], cfg: WingCfg): [Seat[], Seat[]] {
   const num = (s: Seat) => parseInt(s.seatCode.slice(2), 10) || 0;
@@ -116,10 +135,11 @@ function splitRows(seats: Seat[], cfg: WingCfg): [Seat[], Seat[]] {
   return [top, bottom];
 }
 
-function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) {
+function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: OpenFn }) {
+  const selected = useContext(SelectedCtx) === seat.id;
   return (
     <button
-      onClick={() =>
+      onClick={(e) =>
         onOpen({
           title: `Seat ${seat.seatCode}`,
           description: [seat.process, seat.wing].filter(Boolean).join('  -  '),
@@ -128,10 +148,11 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) 
           base: `/workstations/${seat.id}/equipment`,
           kind: 'seat',
           refId: seat.id,
-        })
+        }, e)
       }
       title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
-      className="flex h-8 w-full items-center justify-center rounded border font-mono
+      data-selected={selected || undefined}
+      className="fv-target flex h-8 w-full items-center justify-center rounded border font-mono
                  text-[10px] font-semibold shadow-sm transition hover:scale-[1.08] hover:shadow"
       style={{
         // Status lives in the tint and border; the code itself stays in the
@@ -149,7 +170,7 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: (o: Opened) => void }) 
 }
 
 /** A row of seat boxes; empty slots keep the sheet's footprint. */
-function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen: (o: Opened) => void }) {
+function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen: OpenFn }) {
   const blanks = Math.max(0, cols - seats.length);
   return (
     // Left-aligned, never centred: a 3-column wing must line up with its
@@ -166,7 +187,7 @@ function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen:
 /** The full wing: top row, "Wing X" band, bottom row - desks facing. */
 function WingStack({
   wingKey, seats, onOpen, grow = true,
-}: { wingKey: string; seats: Seat[]; onOpen: (o: Opened) => void; grow?: boolean }) {
+}: { wingKey: string; seats: Seat[]; onOpen: OpenFn; grow?: boolean }) {
   const cfg = WING[wingKey] ?? { cols: 6, topParity: 1, dir: -1 as const };
   const [top, bottom] = splitRows(seats, cfg);
   return (
@@ -185,10 +206,11 @@ function WingStack({
 
 function CabinBox({
   name, plate, onOpen, tall = false,
-}: { name: string; plate?: Plate; onOpen: (o: Opened) => void; tall?: boolean }) {
+}: { name: string; plate?: Plate; onOpen: OpenFn; tall?: boolean }) {
+  const selected = useContext(SelectedCtx) === name.toLowerCase();
   return (
     <button
-      onClick={() =>
+      onClick={(e) =>
         onOpen({
           title: name,
           description: 'Cabin',
@@ -197,10 +219,11 @@ function CabinBox({
           base: plate?.employeeId ? `/workstations/plates/${plate.employeeId}/equipment` : null,
           kind: 'plate',
           refId: name.toLowerCase(),
-        })
+        }, e)
       }
       title={`${plate?.equipment.length ?? 0} item(s) - click to view`}
-      className={`grid h-full w-full place-items-center rounded-md border
+      data-selected={selected || undefined}
+      className={`fv-target grid h-full w-full place-items-center rounded-md border
                   border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))] px-2
                   text-center text-[12px] font-semibold leading-tight
                   text-[rgb(var(--text))] shadow-sm transition
@@ -244,8 +267,9 @@ function ZoneBlock({
   seatsByWing: Map<string, Seat[]>;
   plates: Map<string, Plate>;
   indSeat?: Seat;
-  onOpen: (o: Opened) => void;
+  onOpen: OpenFn;
 }) {
+  const selectedId = useContext(SelectedCtx);
   /**
    * Every row in a zone runs on one shared column grid, sized to the widest
    * wing in that zone. A cabin then spans exactly the columns its wing does
@@ -321,7 +345,7 @@ function ZoneBlock({
                 ))}
             </div>
             <button
-              onClick={() =>
+              onClick={(e) =>
                 indSeat &&
                 onOpen({
                   title: zone.rightSpan?.label ?? '',
@@ -331,10 +355,11 @@ function ZoneBlock({
                   base: `/workstations/${indSeat.id}/equipment`,
                   kind: 'seat',
                   refId: indSeat.id,
-                })
+                }, e)
               }
               title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
-              className="grid min-w-40 flex-1 place-items-center self-stretch rounded-md border
+              data-selected={(indSeat && selectedId === indSeat.id) || undefined}
+              className="fv-target grid min-w-40 flex-1 place-items-center self-stretch rounded-md border
                          border-dashed border-[rgb(var(--border-hard))] bg-[rgb(var(--surface))]
                          text-[13px] font-semibold text-[rgb(var(--muted))] transition
                          hover:border-[rgb(var(--ring))]"
@@ -403,7 +428,8 @@ function useFitToWidth() {
 
 export function FloorView() {
   const { can } = useAuth();
-  const [opened, setOpened] = useState<Opened | null>(null);
+  const [opened, setOpened] = useState<(Opened & { anchor: Anchor }) | null>(null);
+  const open: OpenFn = (o, e) => setOpened({ ...o, anchor: anchorFrom(e) });
   const { outer, inner, scale, height, measure } = useFitToWidth();
 
   const q = useQuery({
@@ -452,7 +478,7 @@ export function FloorView() {
           <div className="flex flex-col gap-1">
             {!bandBelow && <Band label={zone.bandLabel} />}
             <ZoneBlock zone={zone} seatsByWing={seatsByWing} plates={plates}
-                       indSeat={indSeat} onOpen={setOpened} />
+                       indSeat={indSeat} onOpen={open} />
             {bandBelow && <Band label={zone.bandLabel} />}
           </div>
         </div>
@@ -475,27 +501,33 @@ export function FloorView() {
         </div>
       </div>
 
-      <div ref={outer} className="w-full" style={{ height }}>
-        <div
-          ref={inner}
-          className="w-max space-y-1.5"
-          style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
-        >
-          {renderRow(ROW1, true)}
-          <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
-               style={{
-                 background: 'rgb(var(--viz-2) / 0.10)',
-                 color: 'color-mix(in srgb, rgb(var(--viz-2)) 55%, rgb(var(--text)))',
-               }}>
-            Corridor
+      <SelectedCtx.Provider value={opened?.refId ?? null}>
+        {/* The whole map softens while a card is open; the clicked box stays
+            sharp because its glow is drawn on top, outside the blurred layer. */}
+        <div ref={outer} className="fv-map w-full" data-dim={!!opened} style={{ height }}>
+          <div
+            ref={inner}
+            className="w-max space-y-1.5"
+            style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+          >
+            {renderRow(ROW1, true)}
+            <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
+                 style={{
+                   background: 'rgb(var(--viz-2) / 0.10)',
+                   color: 'color-mix(in srgb, rgb(var(--viz-2)) 55%, rgb(var(--text)))',
+                 }}>
+              Corridor
+            </div>
+            {renderRow(ROW2, false)}
           </div>
-          {renderRow(ROW2, false)}
         </div>
-      </div>
+      </SelectedCtx.Provider>
 
-      {openedLive && (
-        <EquipmentPopup
+      {openedLive && opened && (
+        <ContextCard
+          key={opened.refId}
           opened={openedLive}
+          anchor={opened.anchor}
           canManage={can('workspace.manage')}
           onClose={() => setOpened(null)}
         />
@@ -504,10 +536,195 @@ export function FloorView() {
   );
 }
 
-/** One popup for every kind of cabin: seats, name-plates, Induction Space. */
-function EquipmentPopup({
-  opened, canManage, onClose,
-}: { opened: Opened; canManage: boolean; onClose: () => void }) {
+/* -------------------------------------------------------------------------
+   The floating card. It grows out of the clicked box - scaling up from 0.85
+   at the click point, drifting up 24px, overshooting to 1.03 and settling -
+   over 450ms on a spring curve, with its sections arriving 100ms apart.
+   Closing runs the same path backwards, faster. Never a centred modal.
+------------------------------------------------------------------------- */
+const CARD_W = 400;
+const GAP = 14;
+const MARGIN = 12;
+
+function placeCard(anchor: Anchor, cardH: number) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const r = anchor.rect;
+  // Beside the box, to the right; flip left when there is no room.
+  let left = r.left + r.width + GAP;
+  if (left + CARD_W > vw - MARGIN) left = r.left - GAP - CARD_W;
+  if (left < MARGIN) left = Math.min(Math.max(MARGIN, anchor.x - CARD_W / 2), vw - MARGIN - CARD_W);
+  // Level with the box's centre, kept on screen.
+  let top = r.top + r.height / 2 - cardH / 2;
+  top = Math.max(MARGIN, Math.min(top, vh - MARGIN - cardH));
+  // Transform origin: the click point, expressed inside the card.
+  const ox = Math.max(0, Math.min(CARD_W, anchor.x - left));
+  const oy = Math.max(0, Math.min(cardH, anchor.y - top));
+  return { left, top, ox, oy };
+}
+
+function ContextCard({
+  opened, anchor, canManage, onClose,
+}: { opened: Opened; anchor: Anchor; canManage: boolean; onClose: () => void }) {
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [details, setDetails] = useState(false);
+  const [pos, setPos] = useState(() => placeCard(anchor, 320));
+
+  // Measure once mounted (and whenever the card grows) so it stays on screen.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fix = () => setPos(placeCard(anchor, el.offsetHeight));
+    fix();
+    const ro = new ResizeObserver(fix);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [anchor]);
+
+  const close = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 220);
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const items = opened.equipment;
+  const byCategory = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of items) m.set(it.category.name, (m.get(it.category.name) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [items]);
+  const maxCat = byCategory[0]?.[1] ?? 1;
+
+  const status = items.length === 0
+    ? { label: 'Nothing recorded', tone: 'muted' as const }
+    : opened.missing.length
+      ? { label: `Short of ${opened.missing.length}`, tone: 'warn' as const }
+      : { label: 'Fully equipped', tone: 'ok' as const };
+
+  const seatCode = opened.title.replace(/^Seat /, '');
+
+  return (
+    <>
+      {/* Click-away layer: transparent on purpose - the dashboard stays visible. */}
+      <div className="fixed inset-0 z-40" onMouseDown={close} aria-hidden />
+
+      {/* The clicked box keeps glowing, drawn sharp above the softened map. */}
+      <div
+        className="fv-echo fixed z-40"
+        data-closing={closing}
+        style={{ left: anchor.rect.left, top: anchor.rect.top, width: anchor.rect.width, height: anchor.rect.height }}
+        aria-hidden
+      />
+
+      <div
+        ref={ref}
+        role="dialog"
+        aria-label={opened.title}
+        className="fv-card fixed z-50"
+        data-closing={closing}
+        style={{ left: pos.left, top: pos.top, width: CARD_W, transformOrigin: `${pos.ox}px ${pos.oy}px` }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="fv-sec flex items-start gap-3 px-5 pt-5" style={{ '--i': 0 } as React.CSSProperties}>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[15px] font-semibold tracking-tight text-white">{opened.title}</h3>
+            <div className="mt-1 flex items-center gap-2 text-[12px] text-white/55">
+              <span className={`fv-dot fv-dot-${status.tone}`} />
+              <span>{status.label}</span>
+              {opened.description && <span className="text-white/30">- {opened.description}</span>}
+            </div>
+          </div>
+          <button className="fv-x" onClick={close} aria-label="Close"><X size={14} /></button>
+        </div>
+
+        {/* KPIs */}
+        <div className="fv-sec grid grid-cols-3 gap-2 px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
+          <Kpi label="Items" value={items.length} />
+          <Kpi label="Categories" value={byCategory.length} />
+          <Kpi label="Missing" value={opened.missing.length} tone={opened.missing.length ? 'warn' : undefined} />
+        </div>
+
+        {/* Breakdown */}
+        <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
+          {byCategory.length === 0 ? (
+            <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
+              {opened.base === null
+                ? 'No employee record matches this name yet.'
+                : 'No equipment recorded here yet.'}
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {byCategory.slice(0, 5).map(([name, n]) => (
+                <li key={name} className="flex items-center gap-2.5 text-[12px]">
+                  <span className="w-24 truncate text-white/60">{name}</span>
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.07]">
+                    <span className="fv-bar block h-full rounded-full" style={{ width: `${(n / maxCat) * 100}%` }} />
+                  </span>
+                  <span className="w-4 text-right tabular-nums text-white/80">{n}</span>
+                </li>
+              ))}
+              {byCategory.length > 5 && (
+                <li className="text-[11px] text-white/35">+{byCategory.length - 5} more</li>
+              )}
+            </ul>
+          )}
+          {opened.missing.length > 0 && (
+            <p className="mt-2.5 rounded-xl px-3 py-2 text-[11.5px]"
+               style={{ background: 'rgb(253 224 71 / 0.10)', color: '#fde047' }}>
+              Sheet marks this short of: {opened.missing.join(', ')}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="fv-sec flex items-center gap-2 px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+          <button className="fv-btn" onClick={() => router.push(`/workstations?q=${encodeURIComponent(seatCode)}`)}>
+            {opened.kind === 'plate' ? 'Open cabin' : 'Open seat'}
+          </button>
+          <button className="fv-btn" onClick={() => setDetails((d) => !d)} aria-expanded={details}>
+            {details ? 'Hide details' : 'Inventory details'}
+          </button>
+          <button className="fv-btn fv-btn-primary ml-auto" onClick={() => router.push('/assets')}>
+            Analytics
+          </button>
+        </div>
+
+        {details && (
+          <div className="fv-sec fv-details border-t border-white/[0.07] px-5 pb-5 pt-4"
+               style={{ '--i': 0 } as React.CSSProperties}>
+            <EquipmentManager opened={opened} canManage={canManage} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Kpi({ label, value, tone }: { label: string; value: number; tone?: 'warn' }) {
+  return (
+    <div className="rounded-2xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/[0.06]">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">{label}</p>
+      <p className={`mt-0.5 text-[20px] font-semibold tabular-nums leading-none ${tone === 'warn' ? 'text-[#fde047]' : 'text-white'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** The equipment list with add / edit / remove, shown under "Inventory details". */
+function EquipmentManager({
+  opened, canManage,
+}: { opened: Opened; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ categoryId: '', model: '', serialNumber: '' });
@@ -554,32 +771,16 @@ function EquipmentPopup({
   });
 
   return (
-    <Modal
-      title={opened.title}
-      description={opened.description}
-      onClose={onClose}
-      footer={
-        manageable ? (
+    <div className="dark">
+      {manageable && (
+        <div className="mb-2 flex justify-end">
           <button
             className="btn-primary"
             onClick={() => { setEditing(null); setAdding((a) => !a); }}
           >
             <Plus size={13} /> Add item
           </button>
-        ) : undefined
-      }
-    >
-      {opened.missing.length > 0 && (
-        <p className="mb-2 rounded-md px-3 py-1.5 text-[12px]"
-           style={{ background: 'rgb(var(--warn-bg))', color: 'rgb(var(--warn))' }}>
-          The sheet marked this seat short of: {opened.missing.join(', ')}
-        </p>
-      )}
-      {opened.base === null && (
-        <p className="mb-2 rounded-md px-3 py-1.5 text-[12px]"
-           style={{ background: 'rgb(var(--warn-bg))', color: 'rgb(var(--warn))' }}>
-          No employee record matches this name yet, so items cannot be added here.
-        </p>
+        </div>
       )}
 
       {opened.equipment.length === 0 ? (
@@ -719,6 +920,6 @@ function EquipmentPopup({
           <ErrorNote error={add.error ?? remove.error ?? edit.error} />
         </div>
       )}
-    </Modal>
+    </div>
   );
 }
