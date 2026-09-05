@@ -297,10 +297,11 @@ body {
   object-fit: cover;
   object-position: 50% 50%;
   z-index: 0;
-  /* No blur anywhere on the backdrop. A touch more contrast and colour is
-     the only treatment - it restores some bite lost to the source encode
-     without inventing detail that is not there. */
-  filter: contrast(1.04) saturate(1.06);
+  /* No blur anywhere on the backdrop. The opposite: a sharpening kernel
+     (defined in the page's SVG) runs on the upscaled frame, then a touch
+     more contrast and colour. Edges come back; detail the 720p source never
+     had cannot. */
+  filter: url(#si-sharpen) contrast(1.04) saturate(1.06);
   /* Just enough to hide the decoder's first blank frame; a long fade here
      read as the whole page loading out of black. */
   animation: si-video-in 0.25s ease both;

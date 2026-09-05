@@ -209,6 +209,21 @@ export default function LoginPage() {
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
       <Backdrop />
 
+      {/* Sharpening for the backdrop. The recording exists only at 720p and is
+          stretched to fill the screen; this 3x3 kernel (weights sum to 1, so
+          brightness is untouched) restores edge definition on the upscale.
+          Applied through CSS filter: url(#si-sharpen) on the video. */}
+      <svg width="0" height="0" aria-hidden style={{ position: 'absolute' }}>
+        <filter id="si-sharpen" colorInterpolationFilters="sRGB">
+          <feConvolveMatrix
+            order="3"
+            kernelMatrix="0 -0.35 0 -0.35 2.4 -0.35 0 -0.35 0"
+            preserveAlpha="true"
+            edgeMode="duplicate"
+          />
+        </filter>
+      </svg>
+
       {/* Nothing is drawn until placement is known. The old fallback - a
           centred card rendered before the hook had measured the screen -
           flashed as a black rectangle for one frame on every load. */}
