@@ -318,7 +318,10 @@ body {
   position: relative;
   z-index: 1;
   overflow: hidden;
-  background: linear-gradient(180deg, rgb(15 10 9 / 0.985), rgb(11 8 7 / 0.99));
+  /* Fully opaque: at 98.5% the recording's own sign-up form - its white
+     "Create Account" button and social row - still ghosted through as a
+     faint moving blur beneath the blob row. */
+  background: linear-gradient(180deg, #100b0a, #0c0908);
   border-radius: 20px 0 0 20px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), inset -1px 0 0 rgb(255 255 255 / 0.06);
   /* No fade: the panel is already in its final place when it first paints,
