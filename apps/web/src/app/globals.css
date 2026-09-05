@@ -563,23 +563,113 @@ body {
 }
 @keyframes fv-bar { from { transform: scaleX(0); } }
 
-.fv-btn {
-  height: 34px;
-  padding: 0 13px;
-  white-space: nowrap;
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: rgb(255 255 255 / 0.85);
-  background: rgb(255 255 255 / 0.07);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
-}
-.fv-btn:hover { background: rgb(255 255 255 / 0.12); color: #fff; transform: translateY(-1px); }
-.fv-btn:active { transform: scale(0.97); }
-.fv-btn-primary { background: #ffffff; color: #0b0b0c; border-color: #ffffff; font-weight: 600; }
-.fv-btn-primary:hover { background: #ffffff; color: #000; }
-
 /* The equipment tools inside the card use the shared components on dark tokens */
 .fv-details { max-height: 46vh; overflow: auto; }
 .fv-details .table .th { position: static; }
+
+/* ------------------------------------------------- card: the one action */
+/* "Add Item": white face, 18px corners, a brand-red glow that wakes on
+   hover, a shine that sweeps across, and a spinner while it saves. */
+.fv-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: #0b0b0c;
+  background: linear-gradient(180deg, #ffffff, #f1f1f0);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 8px 22px -10px rgb(255 46 46 / 0.35);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.26s ease, filter 0.2s ease;
+  animation: fv-cta-in 480ms cubic-bezier(0.22, 1.25, 0.36, 1) both;
+  animation-delay: calc(120ms + 3 * 100ms);
+}
+@keyframes fv-cta-in {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.92); }
+  65%  { opacity: 1; transform: translateY(-1px) scale(1.03); }
+  100% { opacity: 1; transform: none; }
+}
+.fv-cta:hover:not(:disabled) {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 2px 4px rgb(0 0 0 / 0.35),
+    0 14px 34px -10px rgb(255 46 46 / 0.65),
+    0 0 0 4px rgb(255 46 46 / 0.10);
+}
+.fv-cta:active:not(:disabled) { transform: scale(0.96); transition-duration: 0.08s; }
+.fv-cta:disabled { cursor: not-allowed; }
+.fv-cta:disabled:not([data-loading='true']) { opacity: 0.55; }
+.fv-cta[data-loading='true'] { cursor: progress; }
+.fv-cta:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(255 46 46 / 0.45); }
+
+.fv-cta-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.06);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.4), background 0.2s ease;
+}
+.fv-cta:hover:not(:disabled) .fv-cta-icon { transform: rotate(90deg); background: rgb(255 46 46 / 0.14); }
+
+.fv-cta-shine {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 35%, rgb(255 46 46 / 0.10) 50%, transparent 65%);
+  transform: translateX(-130%);
+  pointer-events: none;
+}
+.fv-cta:hover:not(:disabled) .fv-cta-shine { animation: fv-shine 0.8s ease both; }
+@keyframes fv-shine { to { transform: translateX(130%); } }
+
+.fv-spin {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgb(0 0 0 / 0.15);
+  border-top-color: #0b0b0c;
+  animation: fv-spin 0.8s linear infinite;
+}
+@keyframes fv-spin { to { transform: rotate(360deg); } }
+
+/* The add form the action reveals */
+.fv-form { animation-delay: 0ms; }
+.fv-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+.fv-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.10);
+  background: rgb(255 255 255 / 0.06);
+  color: #fff;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.fv-input::placeholder { color: rgb(255 255 255 / 0.3); }
+.fv-input:hover { border-color: rgb(255 255 255 / 0.18); }
+.fv-input:focus { border-color: rgb(255 46 46 / 0.7); box-shadow: 0 0 0 3px rgb(255 46 46 / 0.14); background: rgb(255 255 255 / 0.08); }
+select.fv-input { appearance: auto; color-scheme: dark; }

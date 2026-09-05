@@ -3,7 +3,6 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -566,11 +565,30 @@ function placeCard(anchor: Anchor, cardH: number) {
 function ContextCard({
   opened, anchor, canManage, onClose,
 }: { opened: Opened; anchor: Anchor; canManage: boolean; onClose: () => void }) {
-  const router = useRouter();
   const ref = useRef<HTMLDivElement | null>(null);
   const [closing, setClosing] = useState(false);
-  const [details, setDetails] = useState(false);
+  const [showList, setShowList] = useState(false);
   const [pos, setPos] = useState(() => placeCard(anchor, 320));
+
+  // The one action: Add Item. First click reveals the form, second confirms.
+  const queryClient = useQueryClient();
+  const manageable = canManage && opened.base !== null;
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ categoryId: '', model: '', serialNumber: '' });
+  const categories = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api<Array<{ id: string; name: string }>>('/assets/categories'),
+    enabled: manageable && adding,
+  });
+  const add = useMutation({
+    mutationFn: () => api(opened.base as string, { method: 'POST', body: form }),
+    onSuccess: () => {
+      setForm({ categoryId: '', model: '', serialNumber: '' });
+      setAdding(false);
+      queryClient.invalidateQueries({ queryKey: ['floor'] });
+      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+    },
+  });
 
   // Measure once mounted (and whenever the card grows) so it stays on screen.
   useEffect(() => {
@@ -610,8 +628,6 @@ function ContextCard({
       ? { label: `Short of ${opened.missing.length}`, tone: 'warn' as const }
       : { label: 'Fully equipped', tone: 'ok' as const };
 
-  const seatCode = opened.title.replace(/^Seat /, '');
-
   return (
     <>
       {/* Click-away layer: transparent on purpose - the dashboard stays visible. */}
@@ -649,7 +665,7 @@ function ContextCard({
 
         {/* KPIs */}
         <div className="fv-sec grid grid-cols-3 gap-2 px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
-          <Kpi label="Items" value={items.length} />
+          <Kpi label="Items" value={items.length} onClick={() => setShowList((s) => !s)} active={showList} />
           <Kpi label="Categories" value={byCategory.length} />
           <Kpi label="Missing" value={opened.missing.length} tone={opened.missing.length ? 'warn' : undefined} />
         </div>
@@ -686,20 +702,68 @@ function ContextCard({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="fv-sec flex items-center gap-2 px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
-          <button className="fv-btn" onClick={() => router.push(`/workstations?q=${encodeURIComponent(seatCode)}`)}>
-            {opened.kind === 'plate' ? 'Open cabin' : 'Open seat'}
-          </button>
-          <button className="fv-btn" onClick={() => setDetails((d) => !d)} aria-expanded={details}>
-            {details ? 'Hide details' : 'Inventory details'}
-          </button>
-          <button className="fv-btn fv-btn-primary ml-auto" onClick={() => router.push('/assets')}>
-            Analytics
-          </button>
-        </div>
+        {/* Add-item form: revealed by the one action below; the same button
+            then confirms it, so the footer never holds more than one CTA. */}
+        {adding && manageable && (
+          <div className="fv-sec fv-form mx-5 mt-4 grid gap-2.5 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-3"
+               style={{ '--i': 0 } as React.CSSProperties}>
+            <label className="block sm:col-span-3">
+              <span className="fv-label">Item</span>
+              <select
+                className="fv-input"
+                value={form.categoryId}
+                autoFocus
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+              >
+                <option value="">Choose what kind of item...</option>
+                {(categories.data ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="fv-label">Model</span>
+              <input className="fv-input" value={form.model} placeholder="Optional"
+                     onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="fv-label">Serial</span>
+              <input className="fv-input" value={form.serialNumber} placeholder="Optional"
+                     onChange={(e) => setForm((f) => ({ ...f, serialNumber: e.target.value }))} />
+            </label>
+            {add.isError && (
+              <p className="text-[11.5px] text-[#ffb4b4] sm:col-span-3">
+                {add.error instanceof Error ? add.error.message : 'Could not add the item.'}
+              </p>
+            )}
+          </div>
+        )}
 
-        {details && (
+        {/* Footer: one action, bottom-right */}
+        {manageable && (
+          <div className="fv-sec flex items-center justify-end px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+            <button
+              type="button"
+              className="fv-cta"
+              data-loading={add.isPending}
+              disabled={add.isPending || (adding && !form.categoryId)}
+              aria-expanded={adding}
+              onClick={() => {
+                if (!adding) { setAdding(true); return; }
+                add.mutate();
+              }}
+            >
+              <span className="fv-cta-icon" aria-hidden>
+                {add.isPending ? <span className="fv-spin" /> : <Plus size={15} strokeWidth={2.4} />}
+              </span>
+              <span>{add.isPending ? 'Adding...' : adding && form.categoryId ? 'Add Item' : 'Add Item'}</span>
+              <span className="fv-cta-shine" aria-hidden />
+            </button>
+          </div>
+        )}
+        {!manageable && <div className="pb-5" />}
+
+        {showList && (
           <div className="fv-sec fv-details border-t border-white/[0.07] px-5 pb-5 pt-4"
                style={{ '--i': 0 } as React.CSSProperties}>
             <EquipmentManager opened={opened} canManage={canManage} />
@@ -710,14 +774,28 @@ function ContextCard({
   );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: number; tone?: 'warn' }) {
-  return (
-    <div className="rounded-2xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/[0.06]">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">{label}</p>
+function Kpi({
+  label, value, tone, onClick, active,
+}: { label: string; value: number; tone?: 'warn'; onClick?: () => void; active?: boolean }) {
+  const inner = (
+    <>
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">
+        {label}{onClick && <span className="ml-1 text-white/30">{active ? '▾' : '▸'}</span>}
+      </p>
       <p className={`mt-0.5 text-[20px] font-semibold tabular-nums leading-none ${tone === 'warn' ? 'text-[#fde047]' : 'text-white'}`}>
         {value}
       </p>
-    </div>
+    </>
+  );
+  const cls = 'rounded-2xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/[0.06] text-left';
+  return onClick ? (
+    <button type="button" onClick={onClick} aria-expanded={active}
+            className={`${cls} transition hover:bg-white/[0.09] hover:ring-white/[0.12]`}
+            title={active ? 'Hide the item list' : 'Show the item list'}>
+      {inner}
+    </button>
+  ) : (
+    <div className={cls}>{inner}</div>
   );
 }
 
@@ -726,32 +804,15 @@ function EquipmentManager({
   opened, canManage,
 }: { opened: Opened; canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ categoryId: '', model: '', serialNumber: '' });
   const [editing, setEditing] = useState<Item | null>(null);
   const [editForm, setEditForm] = useState({ model: '', serialNumber: '' });
 
   const manageable = canManage && opened.base !== null;
 
-  const categories = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => api<Array<{ id: string; name: string }>>('/assets/categories'),
-    enabled: manageable,
-  });
-
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['floor'] });
     queryClient.invalidateQueries({ queryKey: ['kpis'] });
   };
-
-  const add = useMutation({
-    mutationFn: () => api(opened.base as string, { method: 'POST', body: form }),
-    onSuccess: () => {
-      setForm({ categoryId: '', model: '', serialNumber: '' });
-      setAdding(false);
-      refresh();
-    },
-  });
 
   const remove = useMutation({
     mutationFn: (assetId: string) =>
@@ -772,17 +833,6 @@ function EquipmentManager({
 
   return (
     <div className="dark">
-      {manageable && (
-        <div className="mb-2 flex justify-end">
-          <button
-            className="btn-primary"
-            onClick={() => { setEditing(null); setAdding((a) => !a); }}
-          >
-            <Plus size={13} /> Add item
-          </button>
-        </div>
-      )}
-
       {opened.equipment.length === 0 ? (
         <p className="py-4 text-center text-[12px] text-[rgb(var(--muted))]">
           Nothing recorded here.
@@ -810,7 +860,6 @@ function EquipmentManager({
                         className="btn-quiet btn-icon"
                         title="Edit model and serial"
                         onClick={() => {
-                          setAdding(false);
                           setEditing(e);
                           setEditForm({
                             model: e.model ?? '',
@@ -881,43 +930,9 @@ function EquipmentManager({
         </div>
       )}
 
-      {adding && manageable && (
-        <div className="mt-3 grid gap-2 border-t border-[rgb(var(--border))] pt-3 sm:grid-cols-3">
-          <Field label="Item" required>
-            <select
-              className="input"
-              value={form.categoryId}
-              onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-            >
-              <option value="">Choose...</option>
-              {(categories.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Model">
-            <input className="input" value={form.model}
-                   onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} />
-          </Field>
-          <Field label="Serial">
-            <input className="input" value={form.serialNumber}
-                   onChange={(e) => setForm((f) => ({ ...f, serialNumber: e.target.value }))} />
-          </Field>
-          <div className="sm:col-span-3">
-            <button
-              className="btn-primary"
-              disabled={!form.categoryId || add.isPending}
-              onClick={() => add.mutate()}
-            >
-              {add.isPending ? 'Adding...' : `Add to ${opened.title}`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {(add.isError || remove.isError || edit.isError) && (
+      {(remove.isError || edit.isError) && (
         <div className="mt-2">
-          <ErrorNote error={add.error ?? remove.error ?? edit.error} />
+          <ErrorNote error={remove.error ?? edit.error} />
         </div>
       )}
     </div>
