@@ -16,8 +16,12 @@ import { teamFromLabel, teamOf, type Team } from '@/lib/teams';
 interface Item {
   id: string; assetTag: string; model: string | null;
   serialNumber: string | null; category: { name: string };
+  make?: string | null;
   status?: string;
 }
+
+/** "Dell Latitude 5440", or the category when the sheet gave no model. */
+const itemName = (it: Item) => [it.make, it.model].filter(Boolean).join(' ') || it.category.name;
 /** The person a seat is mapped to, with everything issued to them. */
 interface Occupant {
   employeeId: string; fullName: string; employeeCode: string;
@@ -787,12 +791,20 @@ function ContextCard({
   }, [person, items]);
   const personHave = personSlots.filter((s) => s.item).length;
   const personMissing = personSlots.filter((s) => !s.item).map((s) => s.slot.label);
+  // A second laptop or monitor is excess only once the core kit is complete;
+  // before that it is still a gap somewhere else.
+  const personExcess = person
+    ? PERSON_SLOTS.filter((slot) => items.filter((it) => slot.match.test(it.category.name.trim())).length > 1)
+        .map((slot) => slot.label)
+    : [];
   const personStatus = !person ? null
-    : personHave === PERSON_SLOTS.length
-      ? { label: 'Fully Equipped', tone: 'ok' as const, detail: `All ${PERSON_SLOTS.length} core items assigned` }
-      : personHave >= 3
-        ? { label: 'Missing Assets', tone: 'warn' as const, detail: `Missing: ${personMissing.join(', ')}` }
-        : { label: 'Partial Allocation', tone: 'warn' as const, detail: `${personHave} of ${PERSON_SLOTS.length} core items assigned` };
+    : personHave === PERSON_SLOTS.length && personExcess.length
+      ? { label: 'Excess Assets', tone: 'ok' as const, detail: `Core kit complete; more than one ${personExcess.join(', ').toLowerCase()}` }
+      : personHave === PERSON_SLOTS.length
+        ? { label: 'Fully Equipped', tone: 'ok' as const, detail: `All ${PERSON_SLOTS.length} core items assigned` }
+        : personHave >= 3
+          ? { label: 'Missing Assets', tone: 'warn' as const, detail: `Missing: ${personMissing.join(', ')}` }
+          : { label: 'Partially Equipped', tone: 'warn' as const, detail: `${personHave} of ${PERSON_SLOTS.length} core items assigned` };
 
   const status = personStatus ?? (items.length === 0
     ? { label: 'Nothing recorded', tone: 'muted' as const }
@@ -863,11 +875,17 @@ function ContextCard({
                 <ul className="grid grid-cols-2 gap-1.5">
                   {items.map((it) => (
                     <li key={it.id} className="fv-asset" data-editing={editing?.id === it.id || undefined}
-                        title={[it.assetTag, it.model, it.serialNumber].filter(Boolean).join(' - ')}>
+                        title={[it.category.name, itemName(it), it.assetTag, it.serialNumber].filter(Boolean).join(' - ')}>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-medium text-white/90">{it.category.name}</span>
-                        <span className="block truncate text-[10.5px] text-white/45">
-                          {[it.model, it.assetTag].filter(Boolean).join(' - ')}
+                        <span className="block truncate text-[12px] font-medium text-white/90">
+                          {itemName(it)}
+                          {itemName(it) !== it.category.name && (
+                            <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-white/40">{it.category.name}</span>
+                          )}
+                        </span>
+                        <span className="block truncate font-mono text-[10.5px] text-white/45">
+                          ID {it.assetTag}{it.serialNumber ? ` · SN ${it.serialNumber}` : ' · no serial'}
+                          {it.status && it.status !== 'ALLOCATED' ? ` · ${it.status.replace(/_/g, ' ').toLowerCase()}` : ''}
                         </span>
                       </span>
                       {manageable ? (

@@ -16,6 +16,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { ReconcileModule } from './modules/reconcile/reconcile.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { AllocationsModule } from './modules/allocations/allocations.module';
 import { EmployeesModule } from './modules/employees/employees.module';
@@ -63,6 +64,7 @@ import { HealthModule } from './modules/health/health.module';
     UsersModule,
     VouchersModule,
     BackupModule,
+    ReconcileModule,
     DashboardModule,
     HealthModule,
   ],

@@ -1849,6 +1849,37 @@ model SyncRow {
 //  BACKUPS
 // ---------------------------------------------------------------------------
 
+/// One pass of the reconciliation engine: the master workbooks read and
+/// applied, then the database checked against them. Kept forever; the
+/// dashboard reads the latest and the success rate over the recent ones.
+model ReconciliationRun {
+  id             String   @id @default(uuid()) @db.Uuid
+  status         String   @default("RUNNING")
+  trigger        String
+  startedAt      DateTime @default(now()) @db.Timestamptz(3)
+  finishedAt     DateTime? @db.Timestamptz(3)
+  durationMs     Int?
+
+  /// Were the workbooks read live from Google this run?
+  sheetConnected Boolean  @default(false)
+  sourceNote     String?
+  cccRunId       String?  @db.Uuid
+  wingwiseRunId  String?  @db.Uuid
+
+  /// Counts: created, updated, corrected, exceptions per check.
+  summary        Json     @default("{}")
+  /// The exception lists the dashboard shows (capped per check).
+  exceptions     Json     @default("{}")
+  errorMessage   String?
+
+  triggeredById  String?  @db.Uuid
+  triggeredByName String?
+
+  @@index([startedAt])
+  @@index([status])
+  @@map("reconciliation_runs")
+}
+
 model BackupRun {
   id           String   @id @default(uuid()) @db.Uuid
   type         BackupType

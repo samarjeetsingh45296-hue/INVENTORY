@@ -83,7 +83,7 @@ class WorkstationsController {
                     allocatedAt: true,
                     asset: {
                       select: {
-                        id: true, assetTag: true, model: true, serialNumber: true, status: true,
+                        id: true, assetTag: true, make: true, model: true, serialNumber: true, status: true,
                         category: { select: { name: true } },
                       },
                     },

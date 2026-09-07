@@ -35,6 +35,24 @@ un-archived and re-allocated, or recreated with the same tag, model and
 serial if it is gone. Seats that are present and complete are untouched.
 Nothing is ever removed.
 
+### Reconciliation (the sheet against the site)
+
+Four times a day - 09:00, 12:00, 15:00, 18:00 IST (`RECONCILE_CRON`) - the
+master workbooks are read and applied, then the database is checked against
+them. Results are on **Reconciliation** in the site (Administration), with a
+**Validate now** button; by hand: `pnpm --filter @inventory/api reconcile:run`.
+
+Where the workbooks come from, in order:
+
+1. Google Sheets, live, when `GOOGLE_SERVICE_ACCOUNT_JSON` points at a key
+   that both sheets are shared with (docs/GOOGLE-SYNC-SETUP.md).
+2. Otherwise the last workbook files supplied: `CCC_WORKBOOK_FILE` and
+   `WINGWISE_WORKBOOK_FILE`, or the path each importer was last run on.
+
+With neither, a run still checks the database against itself and says so on
+the page ("no source available to read"). Nothing is ever deleted by a run:
+what the sheet no longer lists is flagged under "Assets missing from sheet".
+
 ### What else runs automatically
 
 | Job | Schedule (default) | Retention |

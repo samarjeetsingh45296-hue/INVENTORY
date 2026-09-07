@@ -27,7 +27,8 @@
     "export:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts",
     "mirror:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts",
     "seats:restore": "ts-node --transpile-only scripts/restore-seats.ts",
-    "seats:map": "ts-node --transpile-only scripts/map-seats.ts"
+    "seats:map": "ts-node --transpile-only scripts/map-seats.ts",
+    "reconcile:run": "ts-node --transpile-only scripts/reconcile.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

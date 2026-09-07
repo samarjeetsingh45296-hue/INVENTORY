@@ -23,7 +23,7 @@ interface Detail {
   designation: { name: string } | null;
   allocations: Array<{
     id: string; allocatedAt: string;
-    asset: { id: string; assetTag: string; model: string | null; serialNumber: string | null; category: { name: string } };
+    asset: { id: string; assetTag: string; make?: string | null; model: string | null; serialNumber: string | null; category: { name: string } };
   }>;
   lockerAllocations: Array<{ id: string; allocatedAt: string; keyIssued: boolean; locker: { lockerNo: string; status: string } }>;
   cugAllocations: Array<{ id: string; allocatedAt: string; connection: { mobileNumber: string; operator: string | null; status: string } }>;
@@ -125,7 +125,10 @@ export default function EmployeeDetailPage() {
                 {(e?.allocations ?? []).map((a) => (
                   <tr key={a.id} className="row">
                     <td className="td font-medium text-[rgb(var(--text))]">{a.asset.assetTag}</td>
-                    <td className="td">{a.asset.model ?? a.asset.category.name}</td>
+                    <td className="td">
+                      {[a.asset.make, a.asset.model].filter(Boolean).join(' ') || a.asset.category.name}
+                      {a.asset.serialNumber && <div className="font-mono text-[11px] text-[rgb(var(--muted))]">SN {a.asset.serialNumber}</div>}
+                    </td>
                     <td className="td font-mono text-[11px]">{a.asset.serialNumber ?? '-'}</td>
                     <td className="td whitespace-nowrap">{format(new Date(a.allocatedAt), 'd MMM yy')}</td>
                   </tr>

@@ -88,6 +88,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   /** Broadcasts a domain change to everyone watching the relevant branch. */
   emitChange<T>(payload: Omit<RealtimePayload<T>, 'at'>): void {
+    // No socket server outside the HTTP app (CLI scripts boot the modules
+    // without one); a change is then simply not broadcast.
+    if (!this.server) return;
     const message: RealtimePayload<T> = { ...payload, at: new Date().toISOString() };
     if (payload.branchId) {
       this.server.to(WS_ROOMS.branch(payload.branchId)).emit(payload.event, message);
