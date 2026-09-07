@@ -116,15 +116,19 @@ export default function ReconcilePage() {
           </span>
           <div className="text-[12.5px] leading-relaxed">
             {run?.sheetConnected ? (
-              <p><span className="font-medium">Google Sheet connected.</span> Every run reads the master workbooks live.</p>
+              <p>
+                <span className="font-medium">Google Sheet connected.</span> Every run reads the master workbooks live
+                {run.sourceNote?.includes('by link') ? ' through their share links' : ''}.
+              </p>
             ) : (
               <>
                 <p className="font-medium">Google Sheet not connected.</p>
                 <p className="text-[rgb(var(--text-2))]">
                   Runs read the newest workbook files on this machine instead
                   {run?.sourceNote ? <>: <span className="font-mono text-[11px]">{run.sourceNote}</span></> : <> - and none was found</>}.
-                  Quickest fix: in each Google Sheet choose File &gt; Download &gt; Microsoft Excel, leave the files in Downloads,
-                  and press Validate now. To read the sheet live instead, add the service-account key and share both sheets with it (docs/GOOGLE-SYNC-SETUP.md).
+                  Quickest fix, once: open each Google Sheet, press Share, and under General access choose
+                  &quot;Anyone with the link&quot; as Viewer. The site then reads both sheets by itself, every run.
+                  Or download each sheet as Excel into Downloads and press Validate now.
                 </p>
               </>
             )}

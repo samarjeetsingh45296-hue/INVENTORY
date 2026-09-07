@@ -6,7 +6,7 @@
  * until then the most recently supplied copy of each workbook (the .xlsx
  * the sync sources point at) stands in, and every run says so.
  */
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
@@ -38,9 +38,11 @@ export function googleSource(spreadsheetId: string, adapter: GoogleSheetsAdapter
 }
 
 export interface ResolvedSources {
-  /** True when the workbooks are read live from Google. */
+  /** True when the workbooks are read live from Google (by key or by link). */
   connected: boolean;
-  /** Why not, when not. */
+  /** How they were read. */
+  mode: 'google-api' | 'link' | 'file' | 'none';
+  /** Why not live, when not. */
   reason: string | null;
   ccc: SheetSource | null;
   wingwise: SheetSource | null;
@@ -52,8 +54,51 @@ export function googleConfigured(): boolean {
 }
 
 /**
- * Google when it can be, else the last workbook file each importer was run
- * on (recorded on its sync source), else nothing for that workbook.
+ * The link route: a sheet shared as "Anyone with the link - Viewer" can be
+ * fetched as a whole Excel workbook, every tab with its name, from a plain
+ * URL - no key, no account. The download is kept under backups/sheets and
+ * read like any workbook file. A private sheet answers with a sign-in page
+ * instead; that is reported, never mistaken for data.
+ */
+export async function fetchByLink(
+  spreadsheetId: string,
+  stem: string,
+): Promise<{ path: string } | { error: string }> {
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const res = await fetch(url, { redirect: 'follow', signal: controller.signal });
+    const type = res.headers.get('content-type') ?? '';
+    if (res.status === 401 || res.status === 403 || type.includes('text/html')) {
+      return {
+        error:
+          'the sheet is private. In Google Sheets choose Share, then under General access pick ' +
+          '"Anyone with the link" as Viewer, and the site will read it by itself.',
+      };
+    }
+    if (!res.ok) return { error: `Google answered ${res.status} ${res.statusText}` };
+    const buf = Buffer.from(await res.arrayBuffer());
+    // An .xlsx is a zip: it starts with "PK".
+    if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
+      return { error: 'Google did not return a workbook (unexpected content)' };
+    }
+    const dir = keptCopiesDir();
+    mkdirSync(dir, { recursive: true });
+    const day = new Date().toISOString().slice(0, 10);
+    const path = join(dir, `${stem}-live-${day}.xlsx`);
+    writeFileSync(path, buf);
+    return { path };
+  } catch (err) {
+    return { error: (err as Error).name === 'AbortError' ? 'timed out after 90s' : (err as Error).message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Live from Google when it can be - by service-account key, else by link -
+ * else the newest workbook file on this machine.
  */
 export async function resolveSources(
   prisma: PrismaClient,
@@ -65,11 +110,59 @@ export async function resolveSources(
   if (googleConfigured()) {
     return {
       connected: true,
+      mode: 'google-api',
       reason: null,
       ccc: cccId ? googleSource(cccId, sheets) : null,
       wingwise: wingId ? googleSource(wingId, sheets) : null,
     };
   }
+
+  // By link: needs nothing but the sheet being viewable by link.
+  if (process.env.SHEET_LINK_READ !== 'false' && (cccId || wingId)) {
+    const [ccc, wing] = await Promise.all([
+      cccId ? fetchByLink(cccId, 'central-contact-center') : Promise.resolve(null),
+      wingId ? fetchByLink(wingId, 'wing-wise') : Promise.resolve(null),
+    ]);
+    const cccOk = ccc && 'path' in ccc ? ccc.path : null;
+    const wingOk = wing && 'path' in wing ? wing.path : null;
+    if (cccOk || wingOk) {
+      const problems = [
+        ccc && 'error' in ccc ? `Contact Center sheet: ${ccc.error}` : null,
+        wing && 'error' in wing ? `Wing Wise sheet: ${wing.error}` : null,
+      ].filter(Boolean) as string[];
+      const fallback = await localFiles(prisma);
+      return {
+        connected: true,
+        mode: 'link',
+        reason: problems.length ? problems.join(' | ') : null,
+        ccc: cccOk ? fileSource(cccOk) : fallback.ccc,
+        wingwise: wingOk ? fileSource(wingOk) : fallback.wingwise,
+      };
+    }
+    const why = [
+      ccc && 'error' in ccc ? `Contact Center sheet: ${ccc.error}` : null,
+      wing && 'error' in wing ? `Wing Wise sheet: ${wing.error}` : null,
+    ].filter(Boolean).join(' | ');
+    const local = await localFiles(prisma);
+    return {
+      ...local,
+      reason:
+        `Google Sheets could not be read by link (${why}). ` +
+        'Reading the newest workbook files on this machine instead (Downloads, then backups/sheets).',
+    };
+  }
+
+  const local = await localFiles(prisma);
+  return {
+    ...local,
+    reason:
+      'Google Sheets is not connected: no service-account key at GOOGLE_SERVICE_ACCOUNT_JSON and ' +
+      'link reading is off. Reading the newest workbook files on this machine instead.',
+  };
+}
+
+/** The newest workbook files on this machine, for when Google cannot be read. */
+async function localFiles(prisma: PrismaClient): Promise<ResolvedSources> {
 
   // Without Google, the newest matching workbook wins: an explicit path from
   // the environment, else the newest export in Downloads (download the sheet
@@ -83,14 +176,14 @@ export async function resolveSources(
     return src?.workbookLabel && existsSync(src.workbookLabel) ? fileSource(src.workbookLabel) : null;
   };
 
+  const ccc = await lastFile('Central Contact Center workbook', /central.?contact.?cent.*\.xlsx$/i, process.env.CCC_WORKBOOK_FILE);
+  const wingwise = await lastFile('Wing Wise workbook', /wing.?wise.*\.xlsx$/i, process.env.WINGWISE_WORKBOOK_FILE);
   return {
     connected: false,
-    reason:
-      'Google Sheets is not connected: no service-account key at GOOGLE_SERVICE_ACCOUNT_JSON. ' +
-      'Reading the newest workbook files on this machine instead (Downloads, then backups/sheets). ' +
-      'See docs/GOOGLE-SYNC-SETUP.md.',
-    ccc: await lastFile('Central Contact Center workbook', /central.?contact.?cent.*\.xlsx$/i, process.env.CCC_WORKBOOK_FILE),
-    wingwise: await lastFile('Wing Wise workbook', /wing.?wise.*\.xlsx$/i, process.env.WINGWISE_WORKBOOK_FILE),
+    mode: ccc || wingwise ? 'file' : 'none',
+    reason: null,
+    ccc,
+    wingwise,
   };
 }
 

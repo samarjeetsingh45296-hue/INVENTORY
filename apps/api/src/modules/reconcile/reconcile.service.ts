@@ -97,6 +97,7 @@ export class ReconcileService {
       // ------------------------------------------------ 1. read and apply --
       const sources = await resolveSources(this.prisma, this.sheets);
       summary.sheetConnected = sources.connected;
+      summary.sourceMode = sources.mode;
       if (sources.reason) problems.push(sources.reason);
 
       let seenAssetKeys: Set<string> | null = null;
@@ -154,9 +155,11 @@ export class ReconcileService {
           finishedAt: new Date(),
           durationMs: Date.now() - run.startedAt.getTime(),
           sheetConnected: sources.connected,
-          sourceNote: sources.connected
-            ? 'Read live from Google Sheets'
-            : [sources.ccc?.label, sources.wingwise?.label].filter(Boolean).join(' | ') || null,
+          sourceNote: sources.mode === 'google-api'
+            ? 'Read live from Google Sheets (service account)'
+            : sources.mode === 'link'
+              ? 'Read live from Google Sheets (by link)'
+              : [sources.ccc?.label, sources.wingwise?.label].filter(Boolean).join(' | ') || null,
           cccRunId,
           wingwiseRunId: wingRunId,
           summary: summary as Prisma.InputJsonValue,
