@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
@@ -90,24 +90,10 @@ type Step = 'credentials' | 'mfa' | 'enrol';
 const APP = 'Inventory Manager';
 
 /**
- * The backdrop video already contains a glass window whose left part is a
- * dark panel. Rather than draw a second window over it, the form panel is
- * laid exactly onto that region. These are its edges as fractions of the
- * video frame, measured from the recording; the hook below maps them to
- * screen pixels for whatever size the video is rendered at.
+ * The backdrop: a watercolour of a golf green, full-bleed behind the card.
+ * A different picture can be dropped into public/ and pointed at here.
  */
-const VIDEO = { w: 1134, h: 720 };
-
-/**
- * The backdrop files. The bundled recording is the reference itself and
- * exists only at 1134x720; a higher-resolution clip with the same framing
- * can be dropped into public/ and pointed at here, without touching code.
- * The poster is a still of the same frame, so the first paint is sharp and
- * never blank while the video decodes.
- */
-const BG_VIDEO = process.env.NEXT_PUBLIC_LOGIN_BG_VIDEO || '/login-bg.mp4';
-const BG_POSTER = process.env.NEXT_PUBLIC_LOGIN_BG_POSTER || '/login-bg.webp';
-const PANEL = { left: 0.120, right: 0.462, top: 0.109, bottom: 0.902 };
+const BG_IMAGE = process.env.NEXT_PUBLIC_LOGIN_BG_IMAGE || '/login-bg.jpg';
 
 /**
  * The decorative row under the Sign in button: six morphing characters in
@@ -152,101 +138,17 @@ function Rise({ d, className = '', children }: { d: number; className?: string; 
   );
 }
 
-interface Box { left: number; top: number; width: number; height: number }
-/**
- * The panel's screen box, plus how much of it (if any) the screen cuts off
- * at the top and bottom, so its content can stay clear of the edges.
- */
-interface Fit extends Box { cutTop: number; cutBottom: number }
-
-/** Smallest gap the panel's content keeps from the top and bottom of the screen. */
-const EDGE = 16;
-
-/**
- * Where the video's panel lands on screen. The recording covers the whole
- * viewport - no bars, no frame - so its glass window stays centred, and on
- * a short, wide screen the window's top and bottom are cropped along with
- * the scene. The panel follows the window exactly; when the crop reaches
- * it, the panel's padding grows so the form never slides off the screen.
- */
-/**
- * Placement is unknown until the first measurement on the client; that
- * state is `undefined`, and nothing panel-shaped is drawn during it. Below
- * 1024px it becomes `null`: the ordinary centred card.
- */
-function useVideoPanel(): Fit | null | undefined {
-  const [fit, setFit] = useState<Fit | null | undefined>(undefined);
-  useEffect(() => {
-    const compute = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      if (vw < 1024) { setFit(null); return; }
-      const scale = Math.max(vw / VIDEO.w, vh / VIDEO.h);
-      const rw = VIDEO.w * scale;
-      const rh = VIDEO.h * scale;
-      const ox = (vw - rw) / 2;
-      const oy = (vh - rh) / 2;
-      const top = oy + PANEL.top * rh;
-      const bottom = oy + PANEL.bottom * rh;
-      setFit({
-        left: ox + PANEL.left * rw,
-        top,
-        width: (PANEL.right - PANEL.left) * rw,
-        height: bottom - top,
-        cutTop: Math.max(0, EDGE - top),
-        cutBottom: Math.max(0, bottom - (vh - EDGE)),
-      });
-    };
-    compute();
-    // Observe the document rather than listening for window resize: it also
-    // fires for zoom changes and emulated viewports, which resize does not.
-    const ro = new ResizeObserver(compute);
-    ro.observe(document.documentElement);
-    window.addEventListener('resize', compute);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', compute);
-    };
-  }, []);
-  return fit;
-}
-
-/**
- * The backdrop is the reference recording itself - a CRT on red dusk hills
- * behind a glass window - looping full-bleed. It stays still for anyone who
- * has asked for less motion.
- */
+/** The picture behind the card. Decorative: it says nothing the form does not. */
 function Backdrop() {
-  const ref = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      v.pause();
-      return;
-    }
-    v.play().catch(() => undefined);
-  }, []);
   return (
-    <video
-      ref={ref}
-      className="si-video"
-      src={BG_VIDEO}
-      poster={BG_POSTER}
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="auto"
-      aria-hidden
-    />
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="si-bg" src={BG_IMAGE} alt="" aria-hidden decoding="async" fetchPriority="high" />
   );
 }
 
 export default function LoginPage() {
   const { login, verifyMfa, enrolmentNotice } = useAuth();
   const router = useRouter();
-  const place = useVideoPanel();
 
   const [step, setStep] = useState<Step>('credentials');
   const [leaving, setLeaving] = useState(false);
@@ -309,51 +211,12 @@ export default function LoginPage() {
     }
   }
 
-  // On large screens the panel is pinned to the video's own window; below
-  // that the video is scenery and the panel is an ordinary centred card.
-  // Where the screen crops the window, the panel's own padding grows by the
-  // same amount, so brand and footer stay visible and the form stays centred
-  // in what can actually be seen.
-  const panelStyle: React.CSSProperties = place
-    ? {
-        position: 'absolute',
-        left: place.left,
-        top: place.top,
-        width: place.width,
-        height: place.height,
-        paddingTop: 40 + place.cutTop,
-        paddingBottom: 40 + place.cutBottom,
-      }
-    : {};
-
   return (
     <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
       <Backdrop />
 
-      {/* Sharpening for the backdrop. The recording exists only at 720p and is
-          stretched to fill the screen; this 3x3 kernel (weights sum to 1, so
-          brightness is untouched) restores edge definition on the upscale.
-          Applied through CSS filter: url(#si-sharpen) on the video. */}
-      <svg width="0" height="0" aria-hidden style={{ position: 'absolute' }}>
-        <filter id="si-sharpen" colorInterpolationFilters="sRGB">
-          <feConvolveMatrix
-            order="3"
-            kernelMatrix="0 -0.35 0 -0.35 2.4 -0.35 0 -0.35 0"
-            preserveAlpha="true"
-            edgeMode="duplicate"
-          />
-        </filter>
-      </svg>
-
-      {/* Nothing is drawn until placement is known. The old fallback - a
-          centred card rendered before the hook had measured the screen -
-          flashed as a black rectangle for one frame on every load. */}
-      {place !== undefined && (
-      <section
-        className={`si-panel flex flex-col p-8 sm:p-10 ${place ? '' : 'w-full max-w-[440px] min-h-[560px] rounded-[22px]'}`}
-        style={panelStyle}
-        data-pinned={!!place}
-      >
+      {/* The card sits in the middle of the screen over the picture. */}
+      <section className="si-panel flex w-full max-w-[440px] flex-col p-8 sm:p-10">
         <Rise d={0}>
           <div className="si-brand">{APP}<span>.</span></div>
         </Rise>
@@ -480,7 +343,6 @@ export default function LoginPage() {
           </p>
         </Rise>
       </section>
-      )}
     </main>
   );
 }
