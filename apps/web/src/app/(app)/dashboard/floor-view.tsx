@@ -619,14 +619,37 @@ function ContextCard({
     queryFn: () => api<Array<{ id: string; name: string }>>('/assets/categories'),
     enabled: manageable,
   });
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['floor'] });
+    queryClient.invalidateQueries({ queryKey: ['kpis'] });
+  };
   const add = useMutation({
     mutationFn: () => api(opened.base as string, { method: 'POST', body: form }),
     onSuccess: () => {
       setForm({ categoryId: '', model: '', serialNumber: '' });
       setAdding(false);
-      queryClient.invalidateQueries({ queryKey: ['floor'] });
-      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+      refresh();
     },
+  });
+
+  // Every item on the card can be edited in place: the pencil on a basic
+  // slot or a custom row opens one small form for its model and serial,
+  // with Remove alongside. Same endpoints the full list uses.
+  const [editing, setEditing] = useState<Item | null>(null);
+  const [editForm, setEditForm] = useState({ model: '', serialNumber: '' });
+  const openEdit = (it: Item) => {
+    setAdding(false);
+    setEditing(it);
+    setEditForm({ model: it.model ?? '', serialNumber: it.serialNumber ?? '' });
+  };
+  const edit = useMutation({
+    mutationFn: () =>
+      api(`/workstations/equipment/${(editing as Item).id}/update`, { method: 'POST', body: editForm }),
+    onSuccess: () => { setEditing(null); refresh(); },
+  });
+  const remove = useMutation({
+    mutationFn: (assetId: string) => api(`${opened.base}/${assetId}/remove`, { method: 'POST' }),
+    onSuccess: () => { setEditing(null); refresh(); },
   });
 
   // Measure once mounted (and whenever the card grows) so it stays on screen.
@@ -738,32 +761,61 @@ function ContextCard({
           <ul className="grid grid-cols-2 gap-1.5">
             {slots.map(({ slot, item, sheetMissing }) => {
               const Icon = slot.icon;
-              const missing = !item;
+              const body = (
+                <>
+                  <span className="fv-slot-ico"><Icon size={14} strokeWidth={2} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] font-medium text-white/90">{slot.label}</span>
+                    <span className="block truncate text-[10.5px] text-white/45">
+                      {item
+                        ? (item.model || item.assetTag)
+                        : sheetMissing ? 'Missing - on the sheet too' : 'Missing'}
+                    </span>
+                  </span>
+                </>
+              );
+              if (!item) {
+                return (
+                  <li key={slot.key}>
+                    <button
+                      type="button"
+                      className="fv-slot"
+                      data-state="missing"
+                      disabled={!manageable}
+                      title={manageable ? `Add a ${slot.label.toLowerCase()} here` : 'Missing'}
+                      onClick={() => startAdd(slot)}
+                    >
+                      {body}
+                      <span className="fv-slot-mark" data-state="missing">
+                        {manageable ? <Plus size={12} strokeWidth={2.6} /> : '!'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
               return (
                 <li key={slot.key}>
-                  <button
-                    type="button"
+                  <div
                     className="fv-slot"
-                    data-state={missing ? 'missing' : 'ok'}
-                    disabled={!manageable || !missing}
-                    title={missing
-                      ? (manageable ? `Add a ${slot.label.toLowerCase()} here` : 'Missing')
-                      : [item.assetTag, item.model].filter(Boolean).join(' - ')}
-                    onClick={() => missing && startAdd(slot)}
+                    data-state="ok"
+                    data-editing={editing?.id === item.id || undefined}
+                    title={[item.assetTag, item.model].filter(Boolean).join(' - ')}
                   >
-                    <span className="fv-slot-ico"><Icon size={14} strokeWidth={2} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px] font-medium text-white/90">{slot.label}</span>
-                      <span className="block truncate text-[10.5px] text-white/45">
-                        {item
-                          ? (item.model || item.assetTag)
-                          : sheetMissing ? 'Missing - on the sheet too' : 'Missing'}
-                      </span>
-                    </span>
-                    {missing
-                      ? <span className="fv-slot-mark" data-state="missing">{manageable ? <Plus size={12} strokeWidth={2.6} /> : '!'}</span>
-                      : <span className="fv-slot-mark" data-state="ok">✓</span>}
-                  </button>
+                    {body}
+                    {manageable ? (
+                      <button
+                        type="button"
+                        className="fv-slot-btn"
+                        title={`Edit ${slot.label.toLowerCase()} (${item.assetTag})`}
+                        aria-label={`Edit ${slot.label}`}
+                        onClick={() => openEdit(item)}
+                      >
+                        <Pencil size={12} strokeWidth={2.2} />
+                      </button>
+                    ) : (
+                      <span className="fv-slot-mark" data-state="ok">✓</span>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -786,13 +838,24 @@ function ContextCard({
             ) : (
               <ul className="space-y-1">
                 {customItems.map((it) => (
-                  <li key={it.id} className="fv-custom">
+                  <li key={it.id} className="fv-custom" data-editing={editing?.id === it.id || undefined}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[12px] font-medium text-white/90">{it.category.name}</span>
                       <span className="block truncate text-[10.5px] text-white/45">
                         {[it.assetTag, it.model].filter(Boolean).join(' - ')}
                       </span>
                     </span>
+                    {manageable && (
+                      <button
+                        type="button"
+                        className="fv-slot-btn"
+                        title={`Edit ${it.category.name} (${it.assetTag})`}
+                        aria-label={`Edit ${it.category.name}`}
+                        onClick={() => openEdit(it)}
+                      >
+                        <Pencil size={12} strokeWidth={2.2} />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -805,6 +868,54 @@ function ContextCard({
              style={{ '--i': 2, background: 'rgb(253 224 71 / 0.10)', color: '#fde047' } as React.CSSProperties}>
             Also here, beyond the basic kit: {extraItems.map((i) => i.category.name).join(', ')}
           </p>
+        )}
+
+        {/* Edit form: one item at a time, opened from its pencil */}
+        {editing && manageable && (
+          <div className="fv-sec fv-form mx-5 mt-4 grid gap-2.5 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-2"
+               style={{ '--i': 0 } as React.CSSProperties}>
+            <p className="text-[12px] font-medium text-white/85 sm:col-span-2">
+              Editing {editing.category.name}{' '}
+              <span className="font-mono text-[11px] text-white/45">{editing.assetTag}</span>
+            </p>
+            <label className="block">
+              <span className="fv-label">Model</span>
+              <input className="fv-input" value={editForm.model} placeholder="Optional" autoFocus
+                     onChange={(e) => setEditForm((f) => ({ ...f, model: e.target.value }))}
+                     onKeyDown={(e) => { if (e.key === 'Enter') edit.mutate(); }} />
+            </label>
+            <label className="block">
+              <span className="fv-label">Serial</span>
+              <input className="fv-input" value={editForm.serialNumber} placeholder="Optional"
+                     onChange={(e) => setEditForm((f) => ({ ...f, serialNumber: e.target.value }))}
+                     onKeyDown={(e) => { if (e.key === 'Enter') edit.mutate(); }} />
+            </label>
+            {(edit.isError || remove.isError) && (
+              <p className="text-[11.5px] text-[#ffb4b4] sm:col-span-2">
+                {(edit.error ?? remove.error) instanceof Error
+                  ? ((edit.error ?? remove.error) as Error).message
+                  : 'Could not save the change.'}
+              </p>
+            )}
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <button type="button" className="fv-save" disabled={edit.isPending} onClick={() => edit.mutate()}>
+                {edit.isPending ? 'Saving...' : 'Save changes'}
+              </button>
+              <button type="button" className="fv-quiet" onClick={() => setEditing(null)}>Cancel</button>
+              <button
+                type="button"
+                className="fv-quiet ml-auto text-[#ffb4b4]"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (window.confirm(`Remove ${editing.category.name} ${editing.assetTag} from ${opened.title}? It is archived, not destroyed.`)) {
+                    remove.mutate(editing.id);
+                  }
+                }}
+              >
+                <span className="inline-flex items-center gap-1"><Trash2 size={12} /> {remove.isPending ? 'Removing...' : 'Remove'}</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Add-item form: revealed by the one action below; the same button
@@ -867,7 +978,7 @@ function ContextCard({
               disabled={add.isPending || (adding && !form.categoryId)}
               aria-expanded={adding}
               onClick={() => {
-                if (!adding) { setAdding(true); return; }
+                if (!adding) { setEditing(null); setAdding(true); return; }
                 add.mutate();
               }}
             >

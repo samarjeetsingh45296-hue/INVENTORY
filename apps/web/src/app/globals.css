@@ -640,13 +640,43 @@ body {
   background: rgb(253 224 71 / 0.07);
   box-shadow: inset 0 0 0 1px rgb(253 224 71 / 0.22);
 }
-.fv-slot:not(:disabled) { cursor: pointer; }
-.fv-slot:not(:disabled):hover {
+button.fv-slot:not(:disabled) { cursor: pointer; }
+button.fv-slot:not(:disabled):hover {
   background: rgb(253 224 71 / 0.13);
   box-shadow: inset 0 0 0 1px rgb(253 224 71 / 0.4);
   transform: translateY(-1px);
 }
-.fv-slot:disabled { cursor: default; }
+button.fv-slot:disabled { cursor: default; }
+.fv-slot[data-editing], .fv-custom[data-editing] {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+/* The pencil on a filled slot or a custom row: quiet until hovered */
+.fv-slot-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: rgb(255 255 255 / 0.45);
+  background: rgb(255 255 255 / 0.06);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.fv-slot-btn:hover { color: #fff; background: rgb(255 255 255 / 0.14); transform: scale(1.06); }
+.fv-slot-btn:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); outline-offset: 1px; }
+.fv-save {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0b0b0c;
+  background: #ffffff;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.fv-save:hover:not(:disabled) { opacity: 0.9; }
+.fv-save:active:not(:disabled) { transform: scale(0.98); }
+.fv-save:disabled { opacity: 0.5; cursor: not-allowed; }
 .fv-slot-ico {
   display: grid;
   place-items: center;
