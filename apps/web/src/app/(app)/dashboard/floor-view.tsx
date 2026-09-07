@@ -4,7 +4,10 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  Armchair, Building2, Cpu, Headphones, Keyboard, Monitor, Mouse, Pencil, Plus, Trash2, X,
+  type LucideIcon,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Field, ErrorNote } from '@/components/ui';
@@ -92,6 +95,13 @@ const ROW2: ZoneSpec[] = [
     rightSpan: { label: 'Induction Space', splitWing: '4B', wings: ['4D'] } },
 ];
 
+/**
+ * What a place is allowed to hold. Counsellor seats carry the basic kit
+ * only; Ops and System seats, the cabins and the Induction Space carry
+ * custom items on top of it.
+ */
+type Tier = 'basic' | 'custom';
+
 interface Opened {
   title: string;
   description?: string;
@@ -100,9 +110,32 @@ interface Opened {
   base: string | null;
   kind: 'seat' | 'plate';
   refId: string;
+  tier: Tier;
   /** Team level, for cabins that are a person. */
   level?: string | null;
 }
+
+/** The seat's process line from the sheet decides its tier. */
+function tierOf(process: string | null): Tier {
+  const p = (process ?? '').toLowerCase();
+  return /\bops\b|system|\bit\b|admin|induction/.test(p) ? 'custom' : 'basic';
+}
+
+/**
+ * The basic kit every seat is expected to have. Each slot names the
+ * categories that satisfy it (a monitor or an all-in-one both fill the
+ * screen slot; the CPU slot is the Desktop category).
+ */
+interface Slot { key: string; label: string; icon: LucideIcon; match: RegExp }
+const BASIC_SLOTS: Slot[] = [
+  { key: 'screen', label: 'Monitor / All-in-one', icon: Monitor, match: /^(monitor|all[ -]?in[ -]?one)$/i },
+  { key: 'cpu', label: 'CPU', icon: Cpu, match: /^(desktop|cpu)$/i },
+  { key: 'keyboard', label: 'Keyboard', icon: Keyboard, match: /^keyboard$/i },
+  { key: 'mouse', label: 'Mouse', icon: Mouse, match: /^mouse$/i },
+  { key: 'headphone', label: 'Headphone', icon: Headphones, match: /^(headphone|headphones|headset)$/i },
+  { key: 'chair', label: 'Chair', icon: Armchair, match: /^chair$/i },
+];
+const isBasicCategory = (name: string) => BASIC_SLOTS.some((s) => s.match.test(name.trim()));
 
 /** Where a click happened, and the box of the thing that was clicked. */
 interface Anchor {
@@ -149,6 +182,7 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: OpenFn }) {
           base: `/workstations/${seat.id}/equipment`,
           kind: 'seat',
           refId: seat.id,
+          tier: tierOf(seat.process),
         }, e)
       }
       title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
@@ -221,6 +255,7 @@ function CabinBox({
           base: plate?.employeeId ? `/workstations/plates/${plate.employeeId}/equipment` : null,
           kind: 'plate',
           refId: name.toLowerCase(),
+          tier: 'custom',
         }, e)
       }
       title={`${plate?.equipment.length ?? 0} item(s) - click to view`}
@@ -357,6 +392,7 @@ function ZoneBlock({
                   base: `/workstations/${indSeat.id}/equipment`,
                   kind: 'seat',
                   refId: indSeat.id,
+                  tier: 'custom',
                 }, e)
               }
               title={indSeat ? `${indSeat.equipment.length} item(s) - click to view` : 'Not recorded yet'}
@@ -581,7 +617,7 @@ function ContextCard({
   const categories = useQuery({
     queryKey: ['categories'],
     queryFn: () => api<Array<{ id: string; name: string }>>('/assets/categories'),
-    enabled: manageable && adding,
+    enabled: manageable,
   });
   const add = useMutation({
     mutationFn: () => api(opened.base as string, { method: 'POST', body: form }),
@@ -618,18 +654,42 @@ function ContextCard({
   }, []);
 
   const items = opened.equipment;
-  const byCategory = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const it of items) m.set(it.category.name, (m.get(it.category.name) ?? 0) + 1);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [items]);
-  const maxCat = byCategory[0]?.[1] ?? 1;
+
+  // Each basic slot takes the first item whose category fills it; whatever
+  // is left over is custom kit (or, on a basic-only seat, a note).
+  const { slots, extraItems } = useMemo(() => {
+    const used = new Set<string>();
+    const sheet = new Set(opened.missing.map((m) => m.trim().toLowerCase()));
+    const slots = BASIC_SLOTS.map((slot) => {
+      const item = items.find((it) => !used.has(it.id) && slot.match.test(it.category.name.trim()));
+      if (item) used.add(item.id);
+      const sheetMissing = [...sheet].some((m) => slot.match.test(m) || slot.label.toLowerCase().includes(m));
+      return { slot, item: item ?? null, sheetMissing };
+    });
+    const extraItems = items.filter((it) => !used.has(it.id));
+    return { slots, extraItems };
+  }, [items, opened.missing]);
+  const customItems = extraItems;
+  const basicHave = slots.filter((s) => s.item).length;
+  const basicShort = BASIC_SLOTS.length - basicHave;
+
+  // What Add Item may add here: the basic categories only on a counsellor
+  // seat, anything elsewhere.
+  const addable = (categories.data ?? []).filter((c) =>
+    opened.tier === 'custom' || isBasicCategory(c.name));
+
+  /** A missing basic slot opens the form with that kind of item chosen. */
+  const startAdd = (slot: Slot) => {
+    const c = (categories.data ?? []).find((x) => slot.match.test(x.name.trim()));
+    setForm((f) => ({ ...f, categoryId: c?.id ?? '' }));
+    setAdding(true);
+  };
 
   const status = items.length === 0
     ? { label: 'Nothing recorded', tone: 'muted' as const }
-    : opened.missing.length
-      ? { label: `Short of ${opened.missing.length}`, tone: 'warn' as const }
-      : { label: 'Fully equipped', tone: 'ok' as const };
+    : basicShort
+      ? { label: `Short of ${basicShort} basic item${basicShort === 1 ? '' : 's'}`, tone: 'warn' as const }
+      : { label: opened.tier === 'custom' ? 'Basic kit complete' : 'Fully equipped', tone: 'ok' as const };
 
   return (
     <>
@@ -650,6 +710,9 @@ function ContextCard({
           <div className="min-w-0 flex-1">
             <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-white">
               <span className="truncate">{opened.title}</span>
+              <span className="fv-tier" data-tier={opened.tier}>
+                {opened.tier === 'custom' ? 'Basic + Custom' : 'Basic'}
+              </span>
               {opened.level && (
                 <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] border border-white/15 bg-white/10 px-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-white/85"
                       title={`Level ${opened.level}`}>
@@ -666,44 +729,83 @@ function ContextCard({
           <button className="fv-x" onClick={close} aria-label="Close"><X size={14} /></button>
         </div>
 
-        {/* KPIs */}
-        <div className="fv-sec grid grid-cols-3 gap-2 px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
-          <Kpi label="Items" value={items.length} onClick={() => setShowList((s) => !s)} active={showList} />
-          <Kpi label="Categories" value={byCategory.length} />
-          <Kpi label="Missing" value={opened.missing.length} tone={opened.missing.length ? 'warn' : undefined} />
+        {/* Basic kit: one slot per expected item, filled or not */}
+        <div className="fv-sec px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="fv-h">Basic</p>
+            <p className="text-[11px] tabular-nums text-white/40">{basicHave}/{BASIC_SLOTS.length}</p>
+          </div>
+          <ul className="grid grid-cols-2 gap-1.5">
+            {slots.map(({ slot, item, sheetMissing }) => {
+              const Icon = slot.icon;
+              const missing = !item;
+              return (
+                <li key={slot.key}>
+                  <button
+                    type="button"
+                    className="fv-slot"
+                    data-state={missing ? 'missing' : 'ok'}
+                    disabled={!manageable || !missing}
+                    title={missing
+                      ? (manageable ? `Add a ${slot.label.toLowerCase()} here` : 'Missing')
+                      : [item.assetTag, item.model].filter(Boolean).join(' - ')}
+                    onClick={() => missing && startAdd(slot)}
+                  >
+                    <span className="fv-slot-ico"><Icon size={14} strokeWidth={2} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium text-white/90">{slot.label}</span>
+                      <span className="block truncate text-[10.5px] text-white/45">
+                        {item
+                          ? (item.model || item.assetTag)
+                          : sheetMissing ? 'Missing - on the sheet too' : 'Missing'}
+                      </span>
+                    </span>
+                    {missing
+                      ? <span className="fv-slot-mark" data-state="missing">{manageable ? <Plus size={12} strokeWidth={2.6} /> : '!'}</span>
+                      : <span className="fv-slot-mark" data-state="ok">✓</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
 
-        {/* Breakdown */}
-        <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
-          {byCategory.length === 0 ? (
-            <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
-              {opened.base === null
-                ? 'No employee record matches this name yet.'
-                : 'No equipment recorded here yet.'}
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {byCategory.slice(0, 5).map(([name, n]) => (
-                <li key={name} className="flex items-center gap-2.5 text-[12px]">
-                  <span className="w-24 truncate text-white/60">{name}</span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.07]">
-                    <span className="fv-bar block h-full rounded-full" style={{ width: `${(n / maxCat) * 100}%` }} />
-                  </span>
-                  <span className="w-4 text-right tabular-nums text-white/80">{n}</span>
-                </li>
-              ))}
-              {byCategory.length > 5 && (
-                <li className="text-[11px] text-white/35">+{byCategory.length - 5} more</li>
-              )}
-            </ul>
-          )}
-          {opened.missing.length > 0 && (
-            <p className="mt-2.5 rounded-xl px-3 py-2 text-[11.5px]"
-               style={{ background: 'rgb(253 224 71 / 0.10)', color: '#fde047' }}>
-              Sheet marks this short of: {opened.missing.join(', ')}
-            </p>
-          )}
-        </div>
+        {/* Custom kit: anything beyond the basics, for the places allowed it */}
+        {opened.tier === 'custom' && (
+          <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="fv-h">Custom</p>
+              <p className="text-[11px] tabular-nums text-white/40">{customItems.length}</p>
+            </div>
+            {customItems.length === 0 ? (
+              <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
+                {opened.base === null
+                  ? 'No employee record matches this name yet.'
+                  : manageable ? 'Nothing custom yet. Add Item puts one here.' : 'Nothing custom recorded.'}
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {customItems.map((it) => (
+                  <li key={it.id} className="fv-custom">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium text-white/90">{it.category.name}</span>
+                      <span className="block truncate text-[10.5px] text-white/45">
+                        {[it.assetTag, it.model].filter(Boolean).join(' - ')}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {opened.tier === 'basic' && extraItems.length > 0 && (
+          <p className="fv-sec mx-5 mt-3 rounded-xl px-3 py-2 text-[11.5px]"
+             style={{ '--i': 2, background: 'rgb(253 224 71 / 0.10)', color: '#fde047' } as React.CSSProperties}>
+            Also here, beyond the basic kit: {extraItems.map((i) => i.category.name).join(', ')}
+          </p>
+        )}
 
         {/* Add-item form: revealed by the one action below; the same button
             then confirms it, so the footer never holds more than one CTA. */}
@@ -719,10 +821,15 @@ function ContextCard({
                 onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
               >
                 <option value="">Choose what kind of item...</option>
-                {(categories.data ?? []).map((c) => (
+                {addable.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {opened.tier === 'basic' && (
+                <span className="mt-1 block text-[10.5px] text-white/40">
+                  Counsellor seats hold the basic kit only.
+                </span>
+              )}
             </label>
             <label className="block sm:col-span-2">
               <span className="fv-label">Model</span>
@@ -744,7 +851,15 @@ function ContextCard({
 
         {/* Footer: one action, bottom-right */}
         {manageable && (
-          <div className="fv-sec flex items-center justify-end px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+          <div className="fv-sec flex items-center justify-between px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+            <button
+              type="button"
+              className="fv-quiet"
+              aria-expanded={showList}
+              onClick={() => setShowList((v) => !v)}
+            >
+              {showList ? 'Hide items' : `Manage ${items.length} item${items.length === 1 ? '' : 's'}`}
+            </button>
             <button
               type="button"
               className="fv-cta"
@@ -764,7 +879,13 @@ function ContextCard({
             </button>
           </div>
         )}
-        {!manageable && <div className="pb-5" />}
+        {!manageable && (
+          <div className="fv-sec flex items-center justify-start px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+            <button type="button" className="fv-quiet" aria-expanded={showList} onClick={() => setShowList((v) => !v)}>
+              {showList ? 'Hide items' : `All ${items.length} item${items.length === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        )}
 
         {showList && (
           <div className="fv-sec fv-details border-t border-white/[0.07] px-5 pb-5 pt-4"
@@ -774,31 +895,6 @@ function ContextCard({
         )}
       </div>
     </>
-  );
-}
-
-function Kpi({
-  label, value, tone, onClick, active,
-}: { label: string; value: number; tone?: 'warn'; onClick?: () => void; active?: boolean }) {
-  const inner = (
-    <>
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">
-        {label}{onClick && <span className="ml-1 text-white/30">{active ? '▾' : '▸'}</span>}
-      </p>
-      <p className={`mt-0.5 text-[20px] font-semibold tabular-nums leading-none ${tone === 'warn' ? 'text-[#fde047]' : 'text-white'}`}>
-        {value}
-      </p>
-    </>
-  );
-  const cls = 'rounded-2xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/[0.06] text-left';
-  return onClick ? (
-    <button type="button" onClick={onClick} aria-expanded={active}
-            className={`${cls} transition hover:bg-white/[0.09] hover:ring-white/[0.12]`}
-            title={active ? 'Hide the item list' : 'Show the item list'}>
-      {inner}
-    </button>
-  ) : (
-    <div className={cls}>{inner}</div>
   );
 }
 

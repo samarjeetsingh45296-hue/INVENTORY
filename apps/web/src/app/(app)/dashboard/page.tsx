@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Boxes, Users, Armchair, Smartphone, KeyRound, Wrench, type LucideIcon,
+  Boxes, Users, Smartphone, KeyRound, Wrench, type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRealtime } from '@/hooks/use-realtime';
@@ -119,7 +119,9 @@ export default function DashboardPage() {
       <PageHeader title="Dashboard" description="Live figures from the application database." />
 
       {/* ------------------------------------------------- headline tiles -- */}
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
+      {/* Stations have no tile of their own: the seat map below is where
+          each seat's kit is read and kept. */}
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
         <Kpi href="/assets" icon={Boxes} label="Assets" tone="ok"
              value={d?.totals.assets} pct={d?.assets.utilisationPct}
              sub={d ? `${d.assets.utilisationPct}% issued` : undefined} />
@@ -127,9 +129,6 @@ export default function DashboardPage() {
              value={d?.totals.employees}
              pct={d ? Math.round((d.dataQuality.employeesWithEquipment / Math.max(d.totals.employees, 1)) * 100) : undefined}
              sub={d ? `${d.dataQuality.employeesWithEquipment} hold equipment` : undefined} />
-        <Kpi href="/workstations" icon={Armchair} label="Stations" tone={d && d.workstations.completionPct < 80 ? 'warn' : 'ok'}
-             value={d?.totals.workstations} pct={d?.workstations.completionPct}
-             sub={d ? `${d.workstations.completionPct}% fully equipped` : undefined} />
         <Kpi href="/cug" icon={Smartphone} label="CUG lines" tone="info"
              value={d?.totals.cug} pct={d?.utilisation.cug.pct}
              sub={d ? `${d.utilisation.cug.available} unassigned` : undefined} />
