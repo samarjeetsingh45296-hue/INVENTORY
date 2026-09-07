@@ -6,6 +6,17 @@ import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { PasswordInput } from '@/components/password-input';
 import { AlertCircle } from 'lucide-react';
+import { Sora } from 'next/font/google';
+
+// The brand wordmark gets its own face - a geometric display type, distinct
+// from the Inter the rest of the app is set in. Self-hosted by Next at build
+// time like Inter, so no runtime font request.
+const brandFont = Sora({
+  subsets: ['latin'],
+  weight: ['700', '800'],
+  display: 'swap',
+  variable: '--font-brand',
+});
 
 /** What went wrong, said inside the card. `fields` are the inputs to tint. */
 interface Fault {
@@ -212,7 +223,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
+    <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${brandFont.variable} ${play ? 'si-play' : ''}`}>
       <Backdrop />
 
       {/* The card sits in the middle of the screen over the picture. */}

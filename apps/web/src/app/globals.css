@@ -333,9 +333,11 @@ body {
 
 /* ------------------------------------------------------------------ form */
 .si-brand {
+  font-family: var(--font-brand), 'Sora', 'Segoe UI', system-ui, sans-serif;
   font-weight: 800;
-  font-size: 18px;
-  letter-spacing: -0.02em;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   color: #ff2e2e;
 }
 .si-brand span { color: rgb(255 46 46 / 0.55); }
