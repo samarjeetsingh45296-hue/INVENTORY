@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Boxes, Users, ScrollText, LayoutDashboard,
-  LogOut, Menu, X, Smartphone, KeyRound, Wrench, ShieldCheck,
+  LogOut, Menu, X, Smartphone, KeyRound, Wrench, ShieldCheck, ChevronsUpDown,
   Armchair, Ticket, UserCog,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -59,17 +59,39 @@ const NAV: NavGroup[] = [
   },
 ];
 
+/** Two letters from a name, for the big avatar on the account card. */
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, canAny } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
+  // The account menu at the bottom-left of the sidebar.
+  const [acctOpen, setAcctOpen] = useState(false);
+  const acctRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
 
-  useEffect(() => { setNavOpen(false); }, [pathname]);
+  useEffect(() => { setNavOpen(false); setAcctOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!acctOpen) return;
+    const away = (e: MouseEvent) => {
+      if (!acctRef.current?.contains(e.target as Node)) setAcctOpen(false);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setAcctOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', key);
+    };
+  }, [acctOpen]);
 
   if (loading || !user) {
     return (
@@ -139,17 +161,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-[rgb(var(--border))] p-2">
-          <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
+        {/* Account: the row at the bottom opens a card with who is signed
+            in, their role, and Sign out. */}
+        <div ref={acctRef} className="acct relative border-t border-[rgb(var(--border))] p-2">
+          {acctOpen && (
+            <div className="acct-pop" role="dialog" aria-label="Account">
+              <div className="acct-card">
+                <span className="acct-avatar" aria-hidden>{initials(user.displayName)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 truncate text-[15px] font-semibold leading-tight">
+                    <span className="truncate">{user.displayName}</span>
+                    <LevelChip level={user.level} />
+                  </p>
+                  <p className="truncate text-[12px] leading-tight text-[rgb(var(--muted))]" title={user.email}>{user.email}</p>
+                </div>
+              </div>
+              <div className="acct-role">{user.roleKeys.join(' · ').replace(/_/g, ' ')}</div>
+              <div className="acct-rule" />
+              <button type="button" className="acct-signout" onClick={logout}>
+                <LogOut size={16} strokeWidth={2} aria-hidden />
+                Sign out
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="acct-trigger"
+            aria-haspopup="dialog"
+            aria-expanded={acctOpen}
+            onClick={() => setAcctOpen((v) => !v)}
+          >
             <Avatar name={user.displayName} size="lg" />
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 truncate text-[12px] font-medium leading-tight">
+            <span className="min-w-0 flex-1 text-left">
+              <span className="flex items-center gap-1.5 truncate text-[12px] font-medium leading-tight">
                 <span className="truncate">{user.displayName}</span>
                 <LevelChip level={user.level} />
-              </p>
-              <p className="truncate text-[10px] leading-tight text-[rgb(var(--muted))]">{user.email}</p>
-            </div>
-          </div>
+              </span>
+              <span className="block truncate text-[10px] leading-tight text-[rgb(var(--muted))]">{user.email}</span>
+            </span>
+            <ChevronsUpDown size={14} className="shrink-0 text-[rgb(var(--muted))]" aria-hidden />
+          </button>
         </div>
       </aside>
 
@@ -170,10 +221,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
-            <button onClick={logout} className="btn-ghost" type="button">
-              <LogOut size={13} aria-hidden />
-              Sign out
-            </button>
           </div>
         </header>
 

@@ -1184,3 +1184,90 @@ select.fv-input { appearance: auto; color-scheme: dark; }
   .es-root, .es-item, .es-hover, .es-body { animation: none; opacity: 1; transform: none; }
   .es-morph, .es-pill, .es-menu, .es-hover { transition: none; }
 }
+
+
+/* ---------------------------------------------------------------------------
+   Account menu, bottom-left of the sidebar. The row with the avatar opens a
+   card above it: who is signed in, their role, and Sign out. Rises out of
+   the row on a short spring; closes on click-away or Escape.
+--------------------------------------------------------------------------- */
+.acct-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+.acct-trigger:hover, .acct-trigger[aria-expanded='true'] { background: rgb(var(--surface-3)); }
+
+.acct-pop {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgb(var(--border-hard));
+  background: rgb(var(--surface));
+  box-shadow: var(--shadow-lg);
+  transform-origin: 16px 100%;
+  animation: acct-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  z-index: 50;
+}
+@keyframes acct-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.acct-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--border));
+}
+.acct-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, #2f8fe0, #1d4ed8);
+  box-shadow: 0 0 0 3px rgb(47 143 224 / 0.18);
+}
+.acct-role {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2f8fe0;
+  background: rgb(47 143 224 / 0.10);
+  border: 1px solid rgb(47 143 224 / 0.35);
+}
+.dark .acct-role { color: #7dbcf5; }
+.acct-rule { height: 1px; margin: 10px 2px; background: rgb(var(--border)); }
+.acct-signout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--bad));
+  transition: background 0.15s ease;
+}
+.acct-signout:hover { background: rgb(var(--bad-bg)); }
