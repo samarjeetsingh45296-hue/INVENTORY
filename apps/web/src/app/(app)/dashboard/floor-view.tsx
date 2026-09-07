@@ -658,7 +658,7 @@ export function FloorView() {
    over 450ms on a spring curve, with its sections arriving 100ms apart.
    Closing runs the same path backwards, faster. Never a centred modal.
 ------------------------------------------------------------------------- */
-const CARD_W = 440;
+const CARD_W = 620;
 const MARGIN = 12;
 
 /**
@@ -838,9 +838,9 @@ function ContextCard({
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="fv-sec flex items-start gap-3 px-5 pt-5" style={{ '--i': 0 } as React.CSSProperties}>
+        <div className="fv-sec flex items-start gap-3 px-7 pt-7" style={{ '--i': 0 } as React.CSSProperties}>
           <div className="min-w-0 flex-1">
-            <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-white">
+            <h3 className="flex items-center gap-2.5 text-[19px] font-semibold tracking-tight text-white">
               <span className="truncate">{opened.title}</span>
               {person && team ? (
                 <span className="fv-tier" data-team={team.id ?? 'other'}>{team.label}</span>
@@ -856,7 +856,7 @@ function ContextCard({
                 </span>
               )}
             </h3>
-            <div className="mt-1 flex items-center gap-2 text-[12px] text-white/55">
+            <div className="mt-1.5 flex items-center gap-2 text-[13.5px] text-white/55">
               <span className={`fv-dot fv-dot-${status.tone}`} />
               <span>{status.label}</span>
               {person && (
@@ -867,34 +867,34 @@ function ContextCard({
               {opened.description && <span className="text-white/30">- {opened.description}</span>}
             </div>
           </div>
-          <button className="fv-x" onClick={close} aria-label="Close"><X size={14} /></button>
+          <button className="fv-x" onClick={close} aria-label="Close"><X size={16} /></button>
         </div>
 
         {person && (
           <>
             {/* Assigned assets: everything issued to this person */}
-            <div className="fv-sec px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="fv-sec px-7 pt-5" style={{ '--i': 1 } as React.CSSProperties}>
               <div className="mb-2 flex items-center justify-between">
                 <p className="fv-h">Assigned assets</p>
-                <p className="text-[11px] tabular-nums text-white/40">{items.length}</p>
+                <p className="text-[12.5px] tabular-nums text-white/40">{items.length}</p>
               </div>
               {items.length === 0 ? (
-                <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
+                <p className="rounded-xl bg-white/[0.04] px-4 py-3 text-[13.5px] text-white/45">
                   Nothing is issued to {person.fullName.split(' ')[0]} yet.
                 </p>
               ) : (
-                <ul className="grid grid-cols-2 gap-1.5">
+                <ul className="grid grid-cols-2 gap-2">
                   {items.map((it) => (
                     <li key={it.id} className="fv-asset" data-editing={editing?.id === it.id || undefined}
                         title={[it.category.name, itemName(it), it.assetTag, it.serialNumber].filter(Boolean).join(' - ')}>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-medium text-white/90">
+                        <span className="block truncate text-[14px] font-medium text-white/90">
                           {itemName(it)}
                           {itemName(it) !== it.category.name && (
-                            <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-white/40">{it.category.name}</span>
+                            <span className="ml-1.5 text-[11px] font-normal uppercase tracking-wide text-white/40">{it.category.name}</span>
                           )}
                         </span>
-                        <span className="block truncate font-mono text-[10.5px] text-white/45">
+                        <span className="block truncate font-mono text-[12px] text-white/45">
                           ID {it.assetTag}{it.serialNumber ? ` · SN ${it.serialNumber}` : ' · no serial'}
                           {it.status && it.status !== 'ALLOCATED' ? ` · ${it.status.replace(/_/g, ' ').toLowerCase()}` : ''}
                         </span>
@@ -902,7 +902,7 @@ function ContextCard({
                       {manageable ? (
                         <button type="button" className="fv-slot-btn" aria-label={`Edit ${it.category.name}`}
                                 title={`Edit ${it.category.name} (${it.assetTag})`} onClick={() => openEdit(it)}>
-                          <Pencil size={12} strokeWidth={2.2} />
+                          <Pencil size={14} strokeWidth={2.2} />
                         </button>
                       ) : (
                         <span className="fv-slot-mark" data-state="ok">✓</span>
@@ -914,16 +914,16 @@ function ContextCard({
             </div>
 
             {/* Asset status: the core kit, item by item, and the verdict */}
-            <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="fv-sec px-7 pt-5" style={{ '--i': 2 } as React.CSSProperties}>
               <div className="mb-2 flex items-center justify-between">
                 <p className="fv-h">Asset status</p>
-                <p className="text-[11px] tabular-nums text-white/40">{personHave}/{PERSON_SLOTS.length} core</p>
+                <p className="text-[12.5px] tabular-nums text-white/40">{personHave}/{PERSON_SLOTS.length} core</p>
               </div>
               <div className="fv-status" data-tone={status.tone}>
                 <span className={`fv-dot fv-dot-${status.tone}`} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold">{status.label}</span>
-                  <span className="block text-[11px] opacity-75">{personStatus?.detail}</span>
+                  <span className="block text-[15px] font-semibold">{status.label}</span>
+                  <span className="block text-[12.5px] opacity-75">{personStatus?.detail}</span>
                 </span>
               </div>
               <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -953,20 +953,20 @@ function ContextCard({
         {!person && (
           <>
         {/* Basic kit: one slot per expected item, filled or not */}
-        <div className="fv-sec px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
+        <div className="fv-sec px-7 pt-5" style={{ '--i': 1 } as React.CSSProperties}>
           <div className="mb-2 flex items-center justify-between">
             <p className="fv-h">Basic</p>
-            <p className="text-[11px] tabular-nums text-white/40">{basicHave}/{BASIC_SLOTS.length}</p>
+            <p className="text-[12.5px] tabular-nums text-white/40">{basicHave}/{BASIC_SLOTS.length}</p>
           </div>
-          <ul className="grid grid-cols-2 gap-1.5">
+          <ul className="grid grid-cols-2 gap-2">
             {slots.map(({ slot, item, sheetMissing }) => {
               const Icon = slot.icon;
               const body = (
                 <>
-                  <span className="fv-slot-ico"><Icon size={14} strokeWidth={2} /></span>
+                  <span className="fv-slot-ico"><Icon size={17} strokeWidth={2} /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-medium text-white/90">{slot.label}</span>
-                    <span className="block truncate text-[10.5px] text-white/45">
+                    <span className="block truncate text-[14px] font-medium text-white/90">{slot.label}</span>
+                    <span className="block truncate text-[12px] text-white/45">
                       {item
                         ? (item.model || item.assetTag)
                         : sheetMissing ? 'Missing - on the sheet too' : 'Missing'}
@@ -987,7 +987,7 @@ function ContextCard({
                     >
                       {body}
                       <span className="fv-slot-mark" data-state="missing">
-                        {manageable ? <Plus size={12} strokeWidth={2.6} /> : '!'}
+                        {manageable ? <Plus size={14} strokeWidth={2.6} /> : '!'}
                       </span>
                     </button>
                   </li>
@@ -1010,7 +1010,7 @@ function ContextCard({
                         aria-label={`Edit ${slot.label}`}
                         onClick={() => openEdit(item)}
                       >
-                        <Pencil size={12} strokeWidth={2.2} />
+                        <Pencil size={14} strokeWidth={2.2} />
                       </button>
                     ) : (
                       <span className="fv-slot-mark" data-state="ok">✓</span>
@@ -1024,13 +1024,13 @@ function ContextCard({
 
         {/* Custom kit: anything beyond the basics, for the places allowed it */}
         {opened.tier === 'custom' && (
-          <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
+          <div className="fv-sec px-7 pt-5" style={{ '--i': 2 } as React.CSSProperties}>
             <div className="mb-2 flex items-center justify-between">
               <p className="fv-h">Custom</p>
-              <p className="text-[11px] tabular-nums text-white/40">{customItems.length}</p>
+              <p className="text-[12.5px] tabular-nums text-white/40">{customItems.length}</p>
             </div>
             {customItems.length === 0 ? (
-              <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
+              <p className="rounded-xl bg-white/[0.04] px-4 py-3 text-[13.5px] text-white/45">
                 {opened.base === null
                   ? 'No employee record matches this name yet.'
                   : manageable ? 'Nothing custom yet. Add Item puts one here.' : 'Nothing custom recorded.'}
@@ -1040,8 +1040,8 @@ function ContextCard({
                 {customItems.map((it) => (
                   <li key={it.id} className="fv-custom" data-editing={editing?.id === it.id || undefined}>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px] font-medium text-white/90">{it.category.name}</span>
-                      <span className="block truncate text-[10.5px] text-white/45">
+                      <span className="block truncate text-[14px] font-medium text-white/90">{it.category.name}</span>
+                      <span className="block truncate text-[12px] text-white/45">
                         {[it.assetTag, it.model].filter(Boolean).join(' - ')}
                       </span>
                     </span>
@@ -1053,7 +1053,7 @@ function ContextCard({
                         aria-label={`Edit ${it.category.name}`}
                         onClick={() => openEdit(it)}
                       >
-                        <Pencil size={12} strokeWidth={2.2} />
+                        <Pencil size={14} strokeWidth={2.2} />
                       </button>
                     )}
                   </li>
@@ -1064,7 +1064,7 @@ function ContextCard({
         )}
 
         {opened.tier === 'basic' && extraItems.length > 0 && (
-          <p className="fv-sec mx-5 mt-3 rounded-xl px-3 py-2 text-[11.5px]"
+          <p className="fv-sec mx-7 mt-4 rounded-xl px-4 py-2.5 text-[13px]"
              style={{ '--i': 2, background: 'rgb(253 224 71 / 0.10)', color: '#fde047' } as React.CSSProperties}>
             Also here, beyond the basic kit: {extraItems.map((i) => i.category.name).join(', ')}
           </p>
@@ -1075,9 +1075,9 @@ function ContextCard({
 
         {/* Edit form: one item at a time, opened from its pencil */}
         {editing && manageable && (
-          <div className="fv-sec fv-form mx-5 mt-4 grid gap-2.5 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-2"
+          <div className="fv-sec fv-form mx-7 mt-5 grid gap-3 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-2"
                style={{ '--i': 0 } as React.CSSProperties}>
-            <p className="text-[12px] font-medium text-white/85 sm:col-span-2">
+            <p className="text-[13.5px] font-medium text-white/85 sm:col-span-2">
               Editing {editing.category.name}{' '}
               <span className="font-mono text-[11px] text-white/45">{editing.assetTag}</span>
             </p>
@@ -1124,7 +1124,7 @@ function ContextCard({
         {/* Add-item form: revealed by the one action below; the same button
             then confirms it, so the footer never holds more than one CTA. */}
         {adding && manageable && (
-          <div className="fv-sec fv-form mx-5 mt-4 grid gap-2.5 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-3"
+          <div className="fv-sec fv-form mx-7 mt-5 grid gap-3 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06] sm:grid-cols-3"
                style={{ '--i': 0 } as React.CSSProperties}>
             <label className="block sm:col-span-3">
               <span className="fv-label">Item</span>
@@ -1165,7 +1165,7 @@ function ContextCard({
 
         {/* Footer: one action, bottom-right */}
         {manageable && (
-          <div className="fv-sec flex items-center justify-between px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+          <div className="fv-sec flex items-center justify-between px-7 pb-7 pt-5" style={{ '--i': 3 } as React.CSSProperties}>
             <button
               type="button"
               className="fv-quiet"
@@ -1194,7 +1194,7 @@ function ContextCard({
           </div>
         )}
         {!manageable && (
-          <div className="fv-sec flex items-center justify-start px-5 pb-5 pt-4" style={{ '--i': 3 } as React.CSSProperties}>
+          <div className="fv-sec flex items-center justify-start px-7 pb-7 pt-5" style={{ '--i': 3 } as React.CSSProperties}>
             <button type="button" className="fv-quiet" aria-expanded={showList} onClick={() => setShowList((v) => !v)}>
               {showList ? 'Hide items' : `All ${items.length} item${items.length === 1 ? '' : 's'}`}
             </button>
@@ -1202,7 +1202,7 @@ function ContextCard({
         )}
 
         {showList && (
-          <div className="fv-sec fv-details border-t border-white/[0.07] px-5 pb-5 pt-4"
+          <div className="fv-sec fv-details border-t border-white/[0.07] px-7 pb-7 pt-5"
                style={{ '--i': 0 } as React.CSSProperties}>
             <EquipmentManager opened={opened} canManage={canManage} />
           </div>
