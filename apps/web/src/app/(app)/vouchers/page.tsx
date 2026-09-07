@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import {
   PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard, Person,
 } from '@/components/ui';
+import { EmployeePicker, type PickedEmployee } from '@/components/employee-picker';
 
 interface Row {
   id: string;
@@ -30,13 +31,19 @@ interface Page {
   page: number; total: number; totalPages: number;
 }
 
-const STATUSES = ['AVAILABLE', 'ISSUED', 'REDEEMED', 'EXPIRED', 'VOID', 'LOST'];
+/** A card is either in the drawer or with someone. */
+const STATUSES = [
+  { value: 'AVAILABLE', label: 'Available' },
+  { value: 'ISSUED', label: 'Issued' },
+];
 
 export default function VouchersPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  /** The card whose holder is being chosen. */
+  const [issuing, setIssuing] = useState<Row | null>(null);
 
   const params = new URLSearchParams({
     pageSize: '500',
@@ -54,21 +61,12 @@ export default function VouchersPage() {
 
   /** Status drives the record - the holder travels with it. */
   const setCardStatus = useMutation({
-    mutationFn: (vars: { id: string; status: string; issuedToName?: string }) =>
+    mutationFn: (vars: { id: string; status: string; employeeId?: string; issuedToName?: string }) =>
       api(`/vouchers/${vars.id}/status`, {
         method: 'POST',
-        body: { status: vars.status, issuedToName: vars.issuedToName },
+        body: { status: vars.status, employeeId: vars.employeeId, issuedToName: vars.issuedToName },
       }),
-    onSuccess: refresh,
-  });
-
-  const setHolder = useMutation({
-    mutationFn: (vars: { id: string; issuedToName: string }) =>
-      api(`/vouchers/${vars.id}/holder`, {
-        method: 'POST',
-        body: { issuedToName: vars.issuedToName },
-      }),
-    onSuccess: refresh,
+    onSuccess: () => { setIssuing(null); refresh(); },
   });
 
   const counts = Object.fromEntries(
@@ -78,16 +76,8 @@ export default function VouchersPage() {
 
   function onStatusChange(row: Row, next: string) {
     if (next === row.status) return;
-    // Issuing needs a name; nothing else does.
-    if (next === 'ISSUED') {
-      const who = window.prompt(
-        `Issue card ${row.voucherNo} (no. ${row.serialNo ?? '-'}) to whom?`,
-        row.issuedToName ?? '',
-      );
-      if (!who || !who.trim()) return;
-      setCardStatus.mutate({ id: row.id, status: next, issuedToName: who.trim() });
-      return;
-    }
+    // Issuing needs a person: the picker opens in the row.
+    if (next === 'ISSUED') { setIssuing(row); return; }
     if (next === 'AVAILABLE' && row.issuedToName) {
       const ok = window.confirm(
         `Put card ${row.voucherNo} back in the drawer?\n\n` +
@@ -98,24 +88,20 @@ export default function VouchersPage() {
     setCardStatus.mutate({ id: row.id, status: next });
   }
 
+  // Anything that is not "issued" reads as available on this page.
+  const shown = (s: string) => (s === 'ISSUED' ? 'ISSUED' : 'AVAILABLE');
+
   return (
     <>
       <PageHeader
         title="PVR cards"
-        description="Movie vouchers held for rewards. One row is one card - set its status and the holder travels with it."
+        description="Movie vouchers held for rewards. One row is one card - issue it to a person, or put it back in the drawer."
       />
 
-      <div className="mb-3 grid gap-2 sm:grid-cols-4">
+      <div className="mb-3 grid gap-2 sm:grid-cols-3">
         <StatCard label="Cards" value={q.data?.total ?? '-'} />
-        <StatCard label="In the drawer" value={counts.AVAILABLE ?? 0} tone="ok" />
+        <StatCard label="In the drawer" value={(q.data?.total ?? 0) - (counts.ISSUED ?? 0)} tone="ok" />
         <StatCard label="Issued" value={counts.ISSUED ?? 0} />
-        <StatCard
-          label="Used or gone"
-          value={
-            (counts.REDEEMED ?? 0) + (counts.EXPIRED ?? 0) +
-            (counts.VOID ?? 0) + (counts.LOST ?? 0)
-          }
-        />
       </div>
 
       <div className="card mb-3 flex flex-wrap items-center gap-2 p-2">
@@ -133,9 +119,9 @@ export default function VouchersPage() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="">All statuses</option>
+          <option value="">All cards</option>
           {STATUSES.map((s) => (
-            <option key={s} value={s}>{s.toLowerCase()}</option>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
         {q.data && (
@@ -146,10 +132,8 @@ export default function VouchersPage() {
       </div>
 
       {q.isError && <div className="mb-3"><ErrorNote error={q.error} /></div>}
-      {(setCardStatus.isError || setHolder.isError) && (
-        <div className="mb-3">
-          <ErrorNote error={setCardStatus.error ?? setHolder.error} />
-        </div>
+      {setCardStatus.isError && (
+        <div className="mb-3"><ErrorNote error={setCardStatus.error} /></div>
       )}
 
       {!q.isLoading && q.data?.items.length === 0 ? (
@@ -185,37 +169,43 @@ export default function VouchersPage() {
                         <select
                           className="input"
                           style={{ maxWidth: '9rem' }}
-                          value={v.status}
+                          value={issuing?.id === v.id ? 'ISSUED' : shown(v.status)}
                           disabled={setCardStatus.isPending}
                           onChange={(e) => onStatusChange(v, e.target.value)}
                         >
                           {STATUSES.map((s) => (
-                            <option key={s} value={s}>{s.toLowerCase()}</option>
+                            <option key={s.value} value={s.value}>{s.label}</option>
                           ))}
                         </select>
                       ) : (
-                        <StatusBadge status={v.status} />
+                        <StatusBadge status={shown(v.status)} />
                       )}
                     </td>
                     <td className="td">
-                      {v.issuedTo ? (
-                        <Link href={`/employees/${v.issuedTo.id}`} className="link">
-                          <Person name={v.issuedTo.fullName} level={v.issuedTo.level} />
-                        </Link>
+                      {issuing?.id === v.id ? (
+                        <IssueTo
+                          card={v}
+                          pending={setCardStatus.isPending}
+                          onPick={(p) => setCardStatus.mutate({ id: v.id, status: 'ISSUED', employeeId: p.id, issuedToName: p.fullName })}
+                          onCancel={() => setIssuing(null)}
+                        />
+                      ) : v.issuedTo ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Link href={`/employees/${v.issuedTo.id}`} className="link">
+                            <Person name={v.issuedTo.fullName} level={v.issuedTo.level} />
+                          </Link>
+                          {canWrite && (
+                            <button className="btn-quiet btn-icon" title="Issue to someone else" onClick={() => setIssuing(v)}>
+                              <Pencil size={11} />
+                            </button>
+                          )}
+                        </span>
                       ) : v.issuedToName ? (
                         <span className="inline-flex items-center gap-1.5">
                           {v.issuedToName}
+                          <span className="text-[11px] text-[rgb(var(--muted))]">not on record</span>
                           {canWrite && (
-                            <button
-                              className="btn-quiet btn-icon"
-                              title="Change the name"
-                              onClick={() => {
-                                const who = window.prompt('Issued to', v.issuedToName ?? '');
-                                if (who !== null) {
-                                  setHolder.mutate({ id: v.id, issuedToName: who.trim() });
-                                }
-                              }}
-                            >
+                            <button className="btn-quiet btn-icon" title="Link to a person on record" onClick={() => setIssuing(v)}>
                               <Pencil size={11} />
                             </button>
                           )}
@@ -238,5 +228,21 @@ export default function VouchersPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** The picker that appears in the Issued to cell while a card is being issued. */
+function IssueTo({
+  card, pending, onPick, onCancel,
+}: { card: Row; pending: boolean; onPick: (p: PickedEmployee) => void; onCancel: () => void }) {
+  const [picked, setPicked] = useState<PickedEmployee | null>(null);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <EmployeePicker value={picked} onChange={setPicked} autoFocus placeholder={`Issue ${card.voucherNo} to...`} />
+      <button className="btn-primary" disabled={!picked || pending} onClick={() => picked && onPick(picked)}>
+        {pending ? 'Saving...' : 'Issue'}
+      </button>
+      <button className="btn-ghost" onClick={onCancel}>Cancel</button>
+    </span>
   );
 }
