@@ -20,21 +20,13 @@ class LockersController {
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '50',
     @Query('search') search?: string,
-    @Query('status') status?: LockerStatus | 'RETURNED',
+    @Query('status') status?: LockerStatus,
   ) {
     const take = Math.min(Number(pageSize) || 50, 200);
-    // "Returned" is not a locker state but a history: a key that was held
-    // and has come back, with no one holding it now.
-    const statusWhere: Prisma.LockerWhereInput = !status
-      ? {}
-      : status === 'RETURNED'
-        ? {
-            allocations: { some: { status: AllocationStatus.RETURNED } },
-            NOT: { allocations: { some: { status: AllocationStatus.ACTIVE } } },
-          }
-        : { status };
+    // Two states only: a key is allocated, or it is available - a returned
+    // key is simply available again.
     const where: Prisma.LockerWhereInput = {
-      ...statusWhere,
+      ...(status ? { status } : {}),
       ...(search
         ? {
             OR: [

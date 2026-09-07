@@ -76,7 +76,6 @@ export default function LockersPage() {
           <option value="">All keys</option>
           <option value="ALLOCATED">Allocated</option>
           <option value="AVAILABLE">Available</option>
-          <option value="RETURNED">Returned</option>
         </select>
       </div>
 
@@ -199,7 +198,7 @@ function KeyEditor({ row, onDone, onCancel }: { row: Row; onDone: () => void; on
       </span>
       <select className="input max-w-[10rem]" value={mode} onChange={(e) => setMode(e.target.value as 'ALLOCATED' | 'AVAILABLE')}>
         <option value="ALLOCATED">Allocated to</option>
-        <option value="AVAILABLE">Returned / available</option>
+        <option value="AVAILABLE">Available</option>
       </select>
       {mode === 'ALLOCATED' && (
         <div className="relative" style={{ minWidth: '16rem' }}>
