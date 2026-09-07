@@ -474,7 +474,9 @@ function ZoneBlock({
 }
 
 /** Past this the seat boxes read as oversized rather than generous. */
-const MAX_SCALE = 1.4;
+const MAX_SCALE = 2.4;
+/** Room kept under the map so the card's own padding and the page edge show. */
+const BOTTOM_ROOM = 28;
 
 /**
  * Scales the map so the whole floor is visible at once and fills its card.
@@ -489,6 +491,7 @@ function useFitToWidth() {
   const outer = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  const [offsetX, setOffsetX] = useState(0);
   const [height, setHeight] = useState<number | undefined>(undefined);
 
   const measure = useCallback(() => {
@@ -499,9 +502,16 @@ function useFitToWidth() {
     const available = o.clientWidth;
     if (!natural || !available) return;
     // Grow into spare width as well as shrink, so the map never leaves a gap
-    // beside it. Capped, because past a point the boxes just look oversized.
-    const next = Math.min(MAX_SCALE, available / natural);
+    // beside it - and into spare height, so it never leaves one below it
+    // either. The smaller of the two fits keeps it whole. Capped, because
+    // past a point the boxes just look oversized.
+    const naturalH = i.scrollHeight || 1;
+    const roomBelow = window.innerHeight - o.getBoundingClientRect().top - BOTTOM_ROOM;
+    const byHeight = roomBelow > 200 ? roomBelow / naturalH : Infinity;
+    const next = Math.min(MAX_SCALE, available / natural, byHeight);
     setScale(next);
+    // When height is the limit the map is narrower than the card: centre it.
+    setOffsetX(Math.max(0, (available - natural * next) / 2));
     // The wrapper must claim the scaled height, or the transform leaves a gap.
     setHeight(i.scrollHeight * next);
   }, []);
@@ -512,20 +522,24 @@ function useFitToWidth() {
     if (outer.current) ro.observe(outer.current);
     if (inner.current) ro.observe(inner.current);
     window.addEventListener('resize', measure);
+    // The map's top edge moves as the tiles above it load, so re-measure
+    // on scroll too.
+    window.addEventListener('scroll', measure, { passive: true });
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure);
     };
   }, [measure]);
 
-  return { outer, inner, scale, height, measure };
+  return { outer, inner, scale, offsetX, height, measure };
 }
 
 export function FloorView() {
   const { can } = useAuth();
   const [opened, setOpened] = useState<(Opened & { anchor: Anchor }) | null>(null);
   const open: OpenFn = (o, e) => setOpened({ ...o, anchor: anchorFrom(e) });
-  const { outer, inner, scale, height, measure } = useFitToWidth();
+  const { outer, inner, scale, offsetX, height, measure } = useFitToWidth();
 
   const q = useQuery({
     queryKey: ['floor'],
@@ -606,10 +620,11 @@ export function FloorView() {
         {/* The whole map softens while a card is open; the clicked box stays
             sharp because its glow is drawn on top, outside the blurred layer. */}
         <div ref={outer} className="fv-map w-full" data-dim={!!opened} style={{ height }}>
+          {/* Centred when height, not width, is what limits the scale. */}
           <div
             ref={inner}
             className="w-max space-y-1.5"
-            style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+            style={{ transform: `translateX(${offsetX}px) scale(${scale})`, transformOrigin: 'top left' }}
           >
             {renderRow(ROW1, true)}
             <div className="rounded-sm py-1 text-center text-[10px] font-bold uppercase tracking-[0.4em]"
