@@ -5,7 +5,37 @@ the code.
 
 ## Backups
 
-### What runs automatically
+### The MongoDB copy (the standing backup)
+
+Every record - employees, assets, seats with their kit, CUG lines, lockers,
+repairs, PVR cards - plus the sheets' rows verbatim, is mirrored into MongoDB
+(database `inventory`, one collection per entity):
+
+- every night at 01:30 IST (`MONGO_MIRROR_CRON`), and two minutes after the
+  API starts;
+- by hand: `pnpm --filter @inventory/api mirror:mongo`
+  (`-- --uri "mongodb+srv://..."` points it at Atlas for an off-machine copy).
+
+Each run writes a `BACKUP` line to Change History saying how many documents
+it holds, or `MONGODB COPY FAILED` with the reason. There is no screen for
+this on the website; Change History is where to look.
+
+### Putting seats back
+
+If seats are deleted or archived on the website, restore them from the copy:
+
+```bash
+pnpm --filter @inventory/api seats:restore -- --dry-run     # report only
+pnpm --filter @inventory/api seats:restore                  # every seat missing here
+pnpm --filter @inventory/api seats:restore -- --seat 4E173  # one seat
+```
+
+A seat comes back with its wing, process, chair and gaps; its equipment is
+un-archived and re-allocated, or recreated with the same tag, model and
+serial if it is gone. Seats that are present and complete are untouched.
+Nothing is ever removed.
+
+### What else runs automatically
 
 | Job | Schedule (default) | Retention |
 |---|---|---|
@@ -13,21 +43,9 @@ the code.
 | Weekly archive | 03:00 Sunday IST | 52 weeks |
 | Integrity check | 04:30 IST | - |
 
-Schedules come from `BACKUP_DAILY_CRON` and `BACKUP_WEEKLY_CRON`, so the window
-can be moved without a redeploy.
-
-Pruning never removes the newest 7 backups of a type regardless of retention
-dates, so a wrong system clock cannot wipe every backup.
-
-### Checking backups are healthy
-
-Open **Backups** in the web app. Three things matter:
-
-1. The most recent successful run is under 24 hours old.
-2. `Rows captured` is not falling between consecutive backups. A drop means
-   something deleted data.
-3. The red banner about missing files is absent. It appears when the database
-   has a backup record but the file is not on disk.
+Schedules come from `BACKUP_DAILY_CRON` and `BACKUP_WEEKLY_CRON`. These
+dumps need `PG_DUMP_PATH` to point at a working `pg_dump.exe`; a zero-byte
+`.dump` file in `backups/` means it does not.
 
 ### Restoring
 
