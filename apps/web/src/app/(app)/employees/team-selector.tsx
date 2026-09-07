@@ -3,43 +3,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Globe, Headset, MessagesSquare, ServerCog } from 'lucide-react';
 
-/** The teams the Employees screen is split into. */
-export type Team = 'ops' | 'counselor' | 'system' | 'international';
+import { TEAM_LABELS, teamOf, teamLabel, type Team } from '@/lib/teams';
+export { teamOf, teamLabel, type Team };
 
+/** The teams the Employees screen is split into. */
 export const TEAMS: Array<{
   id: Team;
   label: string;
   hint: string;
   Icon: typeof Headset;
 }> = [
-  { id: 'ops', label: 'Operations Team', hint: 'Ops Team department', Icon: Headset },
-  { id: 'counselor', label: 'Counselor', hint: 'Domestic calling', Icon: MessagesSquare },
-  { id: 'system', label: 'System Team', hint: 'System Team department', Icon: ServerCog },
-  { id: 'international', label: 'International', hint: 'International calling', Icon: Globe },
+  { id: 'ops', label: TEAM_LABELS.ops, hint: 'Ops Team department', Icon: Headset },
+  { id: 'counselor', label: TEAM_LABELS.counselor, hint: 'Domestic calling', Icon: MessagesSquare },
+  { id: 'system', label: TEAM_LABELS.system, hint: 'System Team department', Icon: ServerCog },
+  { id: 'international', label: TEAM_LABELS.international, hint: 'International calling', Icon: Globe },
 ];
-
-export function teamLabel(team: Team | null) {
-  return TEAMS.find((t) => t.id === team)?.label ?? null;
-}
-
-/**
- * Which team a person belongs to, from the master-sheet fields the API
- * returns. Departments win over processes; anyone outside the four teams
- * shows their department name so nothing is left blank.
- */
-export function teamOf(e: {
-  department?: { name: string } | null;
-  process?: string | null;
-}): { id: Team | null; label: string } | null {
-  const dept = e.department?.name?.trim().toLowerCase();
-  const proc = e.process?.trim().toLowerCase();
-  if (dept === 'ops team') return { id: 'ops', label: 'Operations Team' };
-  if (dept === 'system team') return { id: 'system', label: 'System Team' };
-  if (proc === 'international') return { id: 'international', label: 'International' };
-  if (proc === 'domestic') return { id: 'counselor', label: 'Counselor' };
-  if (e.department?.name) return { id: null, label: e.department.name };
-  return null;
-}
 
 interface Props {
   value: Team | null;

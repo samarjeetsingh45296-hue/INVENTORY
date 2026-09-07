@@ -5,20 +5,32 @@ import {
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Armchair, Building2, Cpu, Headphones, Keyboard, Monitor, Mouse, Pencil, Plus, Trash2, X,
+  Armchair, Building2, Cpu, Headphones, Keyboard, Laptop, Monitor, Mouse, Pencil, Plus, Trash2, X,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Field, ErrorNote } from '@/components/ui';
+import { teamFromLabel, teamOf, type Team } from '@/lib/teams';
 
 interface Item {
   id: string; assetTag: string; model: string | null;
   serialNumber: string | null; category: { name: string };
+  status?: string;
+}
+/** The person a seat is mapped to, with everything issued to them. */
+interface Occupant {
+  employeeId: string; fullName: string; employeeCode: string;
+  level: string | null; process: string | null;
+  department: { name: string } | null;
+  /** The team that owns the seat, as written on the mapping. */
+  team: string | null;
+  equipment: Item[];
 }
 interface Seat {
   id: string; seatCode: string; wing: string; process: string | null;
   missing: string[]; equipment: Item[];
+  occupant: Occupant | null;
 }
 interface Plate { name: string; employeeId: string | null; level: string | null; equipment: Item[] }
 interface FloorData { seats: Seat[]; plates: Plate[] }
@@ -117,6 +129,28 @@ interface Opened {
   tier: Tier;
   /** Team level, for cabins that are a person. */
   level?: string | null;
+  /** Set when the seat is mapped to a person: the card is theirs. */
+  occupant?: Occupant | null;
+  seatCode?: string;
+}
+
+/**
+ * What a person at a mapped seat is expected to hold. The computer slot is
+ * satisfied by a laptop, a desktop or an all-in-one.
+ */
+const PERSON_SLOTS: Slot[] = [
+  { key: 'computer', label: 'Laptop / Desktop', icon: Laptop, match: /^(laptop|desktop|cpu|all[ -]?in[ -]?one)$/i },
+  { key: 'monitor', label: 'Monitor', icon: Monitor, match: /^monitor$/i },
+  { key: 'keyboard', label: 'Keyboard', icon: Keyboard, match: /^keyboard$/i },
+  { key: 'mouse', label: 'Mouse', icon: Mouse, match: /^mouse$/i },
+  { key: 'headset', label: 'Headset', icon: Headphones, match: /^(headphone|headphones|headset)$/i },
+];
+
+/** The team a mapped seat belongs to: the mapping's word first, then the person's record. */
+function occupantTeam(o: Occupant): { id: Team | null; label: string } {
+  const fromMapping = teamFromLabel(o.team);
+  if (fromMapping) return { id: fromMapping, label: o.team as string };
+  return teamOf(o) ?? { id: null, label: o.team ?? 'Unassigned' };
 }
 
 /** The seat's process line from the sheet decides its tier. */
@@ -177,22 +211,42 @@ function splitRows(seats: Seat[], cfg: WingCfg): [Array<Seat | null>, Seat[]] {
 
 function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: OpenFn }) {
   const selected = useContext(SelectedCtx) === seat.id;
+  const who = seat.occupant;
   return (
     <button
       onClick={(e) =>
-        onOpen({
-          title: `Seat ${seat.seatCode}`,
-          description: [seat.process, seat.wing].filter(Boolean).join('  -  '),
-          missing: seat.missing,
-          equipment: seat.equipment,
-          base: `/workstations/${seat.id}/equipment`,
-          kind: 'seat',
-          refId: seat.id,
-          tier: tierOf(seat.process),
-        }, e)
+        onOpen(who
+          ? {
+              // A mapped seat is this person's inventory location: the card
+              // is theirs, and Add Item issues to them.
+              title: who.fullName,
+              description: [seat.wing].filter(Boolean).join('  -  '),
+              missing: [],
+              equipment: who.equipment,
+              base: `/workstations/plates/${who.employeeId}/equipment`,
+              kind: 'seat',
+              refId: seat.id,
+              tier: 'custom',
+              level: who.level,
+              occupant: who,
+              seatCode: seat.seatCode,
+            }
+          : {
+              title: `Seat ${seat.seatCode}`,
+              description: [seat.process, seat.wing].filter(Boolean).join('  -  '),
+              missing: seat.missing,
+              equipment: seat.equipment,
+              base: `/workstations/${seat.id}/equipment`,
+              kind: 'seat',
+              refId: seat.id,
+              tier: tierOf(seat.process),
+            }, e)
       }
-      title={`${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
+      title={who
+        ? `${who.fullName} - ${occupantTeam(who).label} - ${who.equipment.length} item(s)`
+        : `${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
       data-selected={selected || undefined}
+      data-team={who ? occupantTeam(who).id ?? 'other' : undefined}
       className="fv-target flex h-8 w-full items-center justify-center rounded border font-mono
                  text-[10px] font-semibold shadow-sm transition hover:scale-[1.08] hover:shadow"
       style={{
@@ -510,7 +564,11 @@ export function FloorView() {
       return p ? { ...opened, equipment: p.equipment } : opened;
     }
     const s = (q.data?.seats ?? []).find((x) => x.id === opened.refId);
-    return s ? { ...opened, equipment: s.equipment, missing: s.missing } : opened;
+    if (!s) return opened;
+    if (opened.occupant && s.occupant) {
+      return { ...opened, occupant: s.occupant, equipment: s.occupant.equipment, level: s.occupant.level };
+    }
+    return { ...opened, equipment: s.equipment, missing: s.missing };
   }, [opened, plates, q.data]);
 
   if (q.isError) return <ErrorNote error={q.error} />;
@@ -706,7 +764,7 @@ function ContextCard({
   // What Add Item may add here: the basic categories only on a counsellor
   // seat, anything elsewhere.
   const addable = (categories.data ?? []).filter((c) =>
-    opened.tier === 'custom' || isBasicCategory(c.name));
+    opened.tier === 'custom' || opened.occupant || isBasicCategory(c.name));
 
   /** A missing basic slot opens the form with that kind of item chosen. */
   const startAdd = (slot: Slot) => {
@@ -715,11 +773,32 @@ function ContextCard({
     setAdding(true);
   };
 
-  const status = items.length === 0
+  // A mapped seat: the person's core kit, and the verdict on it.
+  const person = opened.occupant ?? null;
+  const team = person ? occupantTeam(person) : null;
+  const personSlots = useMemo(() => {
+    if (!person) return [];
+    const used = new Set<string>();
+    return PERSON_SLOTS.map((slot) => {
+      const item = items.find((it) => !used.has(it.id) && slot.match.test(it.category.name.trim()));
+      if (item) used.add(item.id);
+      return { slot, item: item ?? null };
+    });
+  }, [person, items]);
+  const personHave = personSlots.filter((s) => s.item).length;
+  const personMissing = personSlots.filter((s) => !s.item).map((s) => s.slot.label);
+  const personStatus = !person ? null
+    : personHave === PERSON_SLOTS.length
+      ? { label: 'Fully Equipped', tone: 'ok' as const, detail: `All ${PERSON_SLOTS.length} core items assigned` }
+      : personHave >= 3
+        ? { label: 'Missing Assets', tone: 'warn' as const, detail: `Missing: ${personMissing.join(', ')}` }
+        : { label: 'Partial Allocation', tone: 'warn' as const, detail: `${personHave} of ${PERSON_SLOTS.length} core items assigned` };
+
+  const status = personStatus ?? (items.length === 0
     ? { label: 'Nothing recorded', tone: 'muted' as const }
     : basicShort
       ? { label: `Short of ${basicShort} basic item${basicShort === 1 ? '' : 's'}`, tone: 'warn' as const }
-      : { label: opened.tier === 'custom' ? 'Basic kit complete' : 'Fully equipped', tone: 'ok' as const };
+      : { label: opened.tier === 'custom' ? 'Basic kit complete' : 'Fully equipped', tone: 'ok' as const });
 
   return (
     <>
@@ -740,9 +819,13 @@ function ContextCard({
           <div className="min-w-0 flex-1">
             <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-white">
               <span className="truncate">{opened.title}</span>
-              <span className="fv-tier" data-tier={opened.tier}>
-                {opened.tier === 'custom' ? 'Basic + Custom' : 'Basic'}
-              </span>
+              {person && team ? (
+                <span className="fv-tier" data-team={team.id ?? 'other'}>{team.label}</span>
+              ) : (
+                <span className="fv-tier" data-tier={opened.tier}>
+                  {opened.tier === 'custom' ? 'Basic + Custom' : 'Basic'}
+                </span>
+              )}
               {opened.level && (
                 <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] border border-white/15 bg-white/10 px-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-white/85"
                       title={`Level ${opened.level}`}>
@@ -753,12 +836,93 @@ function ContextCard({
             <div className="mt-1 flex items-center gap-2 text-[12px] text-white/55">
               <span className={`fv-dot fv-dot-${status.tone}`} />
               <span>{status.label}</span>
+              {person && (
+                <span className="text-white/70">
+                  - Seat <span className="font-mono text-white/90">{opened.seatCode}</span>
+                </span>
+              )}
               {opened.description && <span className="text-white/30">- {opened.description}</span>}
             </div>
           </div>
           <button className="fv-x" onClick={close} aria-label="Close"><X size={14} /></button>
         </div>
 
+        {person && (
+          <>
+            {/* Assigned assets: everything issued to this person */}
+            <div className="fv-sec px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="fv-h">Assigned assets</p>
+                <p className="text-[11px] tabular-nums text-white/40">{items.length}</p>
+              </div>
+              {items.length === 0 ? (
+                <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-[12px] text-white/45">
+                  Nothing is issued to {person.fullName.split(' ')[0]} yet.
+                </p>
+              ) : (
+                <ul className="grid grid-cols-2 gap-1.5">
+                  {items.map((it) => (
+                    <li key={it.id} className="fv-asset" data-editing={editing?.id === it.id || undefined}
+                        title={[it.assetTag, it.model, it.serialNumber].filter(Boolean).join(' - ')}>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-medium text-white/90">{it.category.name}</span>
+                        <span className="block truncate text-[10.5px] text-white/45">
+                          {[it.model, it.assetTag].filter(Boolean).join(' - ')}
+                        </span>
+                      </span>
+                      {manageable ? (
+                        <button type="button" className="fv-slot-btn" aria-label={`Edit ${it.category.name}`}
+                                title={`Edit ${it.category.name} (${it.assetTag})`} onClick={() => openEdit(it)}>
+                          <Pencil size={12} strokeWidth={2.2} />
+                        </button>
+                      ) : (
+                        <span className="fv-slot-mark" data-state="ok">✓</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Asset status: the core kit, item by item, and the verdict */}
+            <div className="fv-sec px-5 pt-4" style={{ '--i': 2 } as React.CSSProperties}>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="fv-h">Asset status</p>
+                <p className="text-[11px] tabular-nums text-white/40">{personHave}/{PERSON_SLOTS.length} core</p>
+              </div>
+              <div className="fv-status" data-tone={status.tone}>
+                <span className={`fv-dot fv-dot-${status.tone}`} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold">{status.label}</span>
+                  <span className="block text-[11px] opacity-75">{personStatus?.detail}</span>
+                </span>
+              </div>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {personSlots.map(({ slot, item }) => {
+                  const Icon = slot.icon;
+                  return (
+                    <li key={slot.key}>
+                      {item || !manageable ? (
+                        <span className="fv-core" data-state={item ? 'ok' : 'missing'}>
+                          <Icon size={12} strokeWidth={2} /> {slot.label}
+                        </span>
+                      ) : (
+                        <button type="button" className="fv-core" data-state="missing"
+                                title={`Issue a ${slot.label.toLowerCase()} to ${person.fullName}`}
+                                onClick={() => startAdd(slot)}>
+                          <Icon size={12} strokeWidth={2} /> {slot.label} <Plus size={11} strokeWidth={2.6} />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </>
+        )}
+
+        {!person && (
+          <>
         {/* Basic kit: one slot per expected item, filled or not */}
         <div className="fv-sec px-5 pt-4" style={{ '--i': 1 } as React.CSSProperties}>
           <div className="mb-2 flex items-center justify-between">
@@ -875,6 +1039,9 @@ function ContextCard({
              style={{ '--i': 2, background: 'rgb(253 224 71 / 0.10)', color: '#fde047' } as React.CSSProperties}>
             Also here, beyond the basic kit: {extraItems.map((i) => i.category.name).join(', ')}
           </p>
+        )}
+
+          </>
         )}
 
         {/* Edit form: one item at a time, opened from its pencil */}

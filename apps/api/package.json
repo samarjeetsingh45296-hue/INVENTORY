@@ -26,7 +26,8 @@
     "cleanup:nomis": "ts-node --transpile-only scripts/cleanup-nomis.ts",
     "export:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts",
     "mirror:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts",
-    "seats:restore": "ts-node --transpile-only scripts/restore-seats.ts"
+    "seats:restore": "ts-node --transpile-only scripts/restore-seats.ts",
+    "seats:map": "ts-node --transpile-only scripts/map-seats.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

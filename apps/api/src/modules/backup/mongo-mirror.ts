@@ -168,7 +168,14 @@ export async function mirrorToMongo(
     // this one document alone.
     const stations = await prisma.workstation.findMany({
       where: { deletedAt: null },
-      include: { location: { select: { name: true } }, branch: { select: { code: true } } },
+      include: {
+        location: { select: { name: true } },
+        branch: { select: { code: true } },
+        allocations: {
+          where: { status: 'ACTIVE' },
+          include: { employee: { select: { fullName: true, employeeCode: true } } },
+        },
+      },
     });
     const kit = await prisma.assetAllocation.findMany({
       where: { holderType: 'WORKSTATION', status: 'ACTIVE', deletedAt: null },
@@ -200,6 +207,14 @@ export async function mirrorToMongo(
             hasDesktop: w.hasDesktop,
             hasPhone: w.hasPhone,
             status: w.status,
+            occupant: w.allocations[0]
+              ? {
+                  fullName: w.allocations[0].employee.fullName,
+                  employeeCode: w.allocations[0].employee.employeeCode,
+                  team: w.allocations[0].remarks?.match(/Team:\s*(.+)/)?.[1]?.trim() ?? null,
+                  since: w.allocations[0].allocatedAt,
+                }
+              : null,
             equipment: (kitByStation.get(w.id) ?? []).map((k) => ({
               assetTag: k.asset.assetTag,
               category: k.asset.category.name,

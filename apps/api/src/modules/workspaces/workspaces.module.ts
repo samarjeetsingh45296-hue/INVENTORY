@@ -64,6 +64,35 @@ class WorkstationsController {
       select: {
         id: true, seatCode: true, notes: true,
         location: { select: { name: true } },
+        // Who sits here, with everything issued to them: a mapped seat is
+        // that person's inventory location, not a generic desk.
+        allocations: {
+          where: { status: AllocationStatus.ACTIVE },
+          orderBy: { allocatedAt: 'desc' },
+          take: 1,
+          select: {
+            remarks: true,
+            allocatedAt: true,
+            employee: {
+              select: {
+                id: true, fullName: true, employeeCode: true, level: true, process: true,
+                department: { select: { name: true } },
+                allocations: {
+                  where: { status: AllocationStatus.ACTIVE },
+                  select: {
+                    allocatedAt: true,
+                    asset: {
+                      select: {
+                        id: true, assetTag: true, model: true, serialNumber: true, status: true,
+                        category: { select: { name: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { seatCode: 'asc' },
     });
@@ -96,6 +125,22 @@ class WorkstationsController {
       missing: w.notes?.match(/Missing:\s*([^|]+)/)?.[1]?.trim().split(/,\s*/) ?? [],
       equipment: (byStation.get(w.id) ?? []).sort((a, b) =>
         a.category.name.localeCompare(b.category.name)),
+      occupant: w.allocations[0]
+        ? {
+            employeeId: w.allocations[0].employee.id,
+            fullName: w.allocations[0].employee.fullName,
+            employeeCode: w.allocations[0].employee.employeeCode,
+            level: w.allocations[0].employee.level,
+            process: w.allocations[0].employee.process,
+            department: w.allocations[0].employee.department,
+            /// The team that owns the seat, as written on the mapping.
+            team: w.allocations[0].remarks?.match(/Team:\s*(.+)/)?.[1]?.trim() ?? null,
+            since: w.allocations[0].allocatedAt,
+            equipment: w.allocations[0].employee.allocations
+              .map((a) => ({ ...a.asset, since: a.allocatedAt }))
+              .sort((a, b) => a.category.name.localeCompare(b.category.name)),
+          }
+        : null,
     }));
 
     // The name-plates: each is an employee whose own equipment shows when the

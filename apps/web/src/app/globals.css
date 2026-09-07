@@ -619,6 +619,56 @@ body {
   background: rgb(255 255 255 / 0.08);
   color: rgb(255 255 255 / 0.75);
 }
+/* The team chip on a person's card, and the seat tint on the map */
+.fv-tier[data-team='ops']           { border-color: rgba(240, 180, 90, 0.45); background: rgba(240, 180, 90, 0.14); color: #f0b45a; }
+.fv-tier[data-team='system']        { border-color: rgba(183, 163, 247, 0.45); background: rgba(183, 163, 247, 0.14); color: #b7a3f7; }
+.fv-tier[data-team='counselor']     { border-color: rgba(125, 188, 245, 0.45); background: rgba(125, 188, 245, 0.14); color: #7dbcf5; }
+.fv-tier[data-team='international'] { border-color: rgba(111, 214, 168, 0.45); background: rgba(111, 214, 168, 0.14); color: #6fd6a8; }
+.fv-target[data-team] { box-shadow: inset 3px 0 0 var(--team-ink, rgb(var(--muted))); }
+.fv-target[data-team='ops']    { --team-ink: #c98a2e; }
+.fv-target[data-team='system'] { --team-ink: #8b6fe0; }
+
+/* A person's assigned asset, and the core-kit chips under the verdict */
+.fv-asset {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+.fv-asset[data-editing] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35); }
+.fv-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  color: #fff;
+}
+.fv-status[data-tone='ok']   { background: rgb(74 222 128 / 0.10); box-shadow: inset 0 0 0 1px rgb(74 222 128 / 0.25); }
+.fv-status[data-tone='warn'] { background: rgb(253 224 71 / 0.10); box-shadow: inset 0 0 0 1px rgb(253 224 71 / 0.25); }
+.fv-core {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.55);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.fv-core[data-state='ok']      { color: #4ade80; background: rgb(74 222 128 / 0.12); box-shadow: inset 0 0 0 1px rgb(74 222 128 / 0.25); }
+.fv-core[data-state='missing'] { color: #fde047; background: rgb(253 224 71 / 0.10); box-shadow: inset 0 0 0 1px rgb(253 224 71 / 0.25); }
+button.fv-core[data-state='missing'] { cursor: pointer; }
+button.fv-core[data-state='missing']:hover { background: rgb(253 224 71 / 0.18); }
+
 .fv-tier[data-tier='custom'] {
   border-color: rgb(139 111 224 / 0.45);
   background: rgb(139 111 224 / 0.16);
