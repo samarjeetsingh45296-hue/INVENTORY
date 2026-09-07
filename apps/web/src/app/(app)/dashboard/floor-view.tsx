@@ -650,24 +650,22 @@ export function FloorView() {
    Closing runs the same path backwards, faster. Never a centred modal.
 ------------------------------------------------------------------------- */
 const CARD_W = 440;
-const GAP = 14;
 const MARGIN = 12;
 
+/**
+ * The card sits in the middle of the screen for every seat, and still
+ * grows out of the box that was clicked: the transform origin is the click
+ * point, so the opening animation reads as coming from that seat.
+ */
 function placeCard(anchor: Anchor, cardH: number) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const r = anchor.rect;
-  // Beside the box, to the right; flip left when there is no room.
-  let left = r.left + r.width + GAP;
-  if (left + CARD_W > vw - MARGIN) left = r.left - GAP - CARD_W;
-  if (left < MARGIN) left = Math.min(Math.max(MARGIN, anchor.x - CARD_W / 2), vw - MARGIN - CARD_W);
-  // Level with the box's centre, kept on screen.
-  let top = r.top + r.height / 2 - cardH / 2;
-  top = Math.max(MARGIN, Math.min(top, vh - MARGIN - cardH));
-  // Transform origin: the click point, expressed inside the card.
-  const ox = Math.max(0, Math.min(CARD_W, anchor.x - left));
-  const oy = Math.max(0, Math.min(cardH, anchor.y - top));
-  return { left, top, ox, oy };
+  const width = Math.min(CARD_W, vw - 2 * MARGIN);
+  const left = Math.round((vw - width) / 2);
+  const top = Math.max(MARGIN, Math.round((vh - cardH) / 2));
+  const ox = anchor.x - left;
+  const oy = anchor.y - top;
+  return { left, top, ox, oy, width };
 }
 
 function ContextCard({
@@ -823,7 +821,11 @@ function ContextCard({
         aria-label={opened.title}
         className="fv-card fixed z-50"
         data-closing={closing}
-        style={{ left: pos.left, top: pos.top, width: CARD_W, transformOrigin: `${pos.ox}px ${pos.oy}px` }}
+        style={{
+          left: pos.left, top: pos.top, width: pos.width,
+          maxHeight: 'calc(100vh - 24px)', overflowY: 'auto',
+          transformOrigin: `${pos.ox}px ${pos.oy}px`,
+        }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
