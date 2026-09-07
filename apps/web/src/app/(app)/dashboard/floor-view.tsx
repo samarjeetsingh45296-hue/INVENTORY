@@ -32,13 +32,17 @@ interface FloorData { seats: Seat[]; plates: Plate[] }
  * beside, and the zone names live in the orange corridor bands - not as
  * headers.
  */
-interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1; top?: number[] }
+/**
+ * `top` pins the top row's order; a null in it is a deliberately empty desk,
+ * drawn as a blank slot so the seats either side keep their places.
+ */
+interface WingCfg { cols: number; topParity: 0 | 1; dir: 1 | -1; top?: Array<number | null> }
 
 const WING: Record<string, WingCfg> = {
   '1C': { cols: 3, topParity: 1, dir: -1 },
-  // 19 sits up in the top row beside 20, not below it, so the parity rule
-  // does not hold here either.
-  '1B': { cols: 6, topParity: 0, dir: -1, top: [22, 20, 19, 18, 16, 14] },
+  // 19 has moved down to the facing row; its old desk between 20 and 18
+  // stays empty, so the top row keeps a gap there.
+  '1B': { cols: 6, topParity: 0, dir: -1, top: [22, 20, null, 18, 16, 14] },
   '1A': { cols: 6, topParity: 0, dir: -1 },
   '2C': { cols: 4, topParity: 1, dir: -1 },
   '2B': { cols: 6, topParity: 1, dir: -1 },
@@ -154,13 +158,15 @@ const anchorFrom = (e: React.MouseEvent<HTMLElement>): Anchor => {
 const SelectedCtx = createContext<string | null>(null);
 
 /** Splits a wing's seats into the two facing rows, ordered as the sheet is. */
-function splitRows(seats: Seat[], cfg: WingCfg): [Seat[], Seat[]] {
+function splitRows(seats: Seat[], cfg: WingCfg): [Array<Seat | null>, Seat[]] {
   const num = (s: Seat) => parseInt(s.seatCode.slice(2), 10) || 0;
   const sorted = [...seats].sort((a, b) => (num(a) - num(b)) * cfg.dir);
   if (cfg.top) {
+    // A pinned number that is not on the floor is dropped; a null is kept as
+    // an empty desk.
     const top = cfg.top
-      .map((n) => sorted.find((s) => num(s) === n))
-      .filter((s): s is Seat => Boolean(s));
+      .map((n) => (n === null ? null : sorted.find((s) => num(s) === n) ?? undefined))
+      .filter((s): s is Seat | null => s !== undefined);
     const bottom = sorted.filter((s) => !cfg.top?.includes(num(s)));
     return [top, bottom];
   }
@@ -205,16 +211,17 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: OpenFn }) {
 }
 
 /** A row of seat boxes; empty slots keep the sheet's footprint. */
-function SeatRow({ seats, cols, onOpen }: { seats: Seat[]; cols: number; onOpen: OpenFn }) {
+function SeatRow({ seats, cols, onOpen }: { seats: Array<Seat | null>; cols: number; onOpen: OpenFn }) {
   const blanks = Math.max(0, cols - seats.length);
+  const blank = (key: string) => (
+    <div key={key} className="h-8 rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
+  );
   return (
     // Left-aligned, never centred: a 3-column wing must line up with its
     // 6-column neighbours, and a part-filled row with the row facing it.
     <div className="grid justify-start gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 58px)` }}>
-      {seats.map((s) => <SeatBox key={s.id} seat={s} onOpen={onOpen} />)}
-      {Array.from({ length: blanks }).map((_, i) => (
-        <div key={`b${i}`} className="h-8 rounded border border-dashed border-[rgb(var(--border))] opacity-40" />
-      ))}
+      {seats.map((s, i) => (s ? <SeatBox key={s.id} seat={s} onOpen={onOpen} /> : blank(`e${i}`)))}
+      {Array.from({ length: blanks }).map((_, i) => blank(`b${i}`))}
     </div>
   );
 }
