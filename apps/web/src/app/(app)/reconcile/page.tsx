@@ -121,9 +121,10 @@ export default function ReconcilePage() {
               <>
                 <p className="font-medium">Google Sheet not connected.</p>
                 <p className="text-[rgb(var(--text-2))]">
-                  Runs read the last workbook files supplied instead
-                  {run?.sourceNote ? <>: <span className="font-mono text-[11px]">{run.sourceNote}</span></> : null}.
-                  To read the sheet live, add the service-account key and share both sheets with it (docs/GOOGLE-SYNC-SETUP.md).
+                  Runs read the newest workbook files on this machine instead
+                  {run?.sourceNote ? <>: <span className="font-mono text-[11px]">{run.sourceNote}</span></> : <> - and none was found</>}.
+                  Quickest fix: in each Google Sheet choose File &gt; Download &gt; Microsoft Excel, leave the files in Downloads,
+                  and press Validate now. To read the sheet live instead, add the service-account key and share both sheets with it (docs/GOOGLE-SYNC-SETUP.md).
                 </p>
               </>
             )}

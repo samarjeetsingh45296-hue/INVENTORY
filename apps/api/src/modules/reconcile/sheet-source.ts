@@ -6,7 +6,9 @@
  * until then the most recently supplied copy of each workbook (the .xlsx
  * the sync sources point at) stands in, and every run says so.
  */
-import { existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import { FileAdapter } from '../sync/adapters/file.adapter';
 import { GoogleSheetsAdapter } from '../sync/adapters/google-sheets.adapter';
@@ -69,21 +71,67 @@ export async function resolveSources(
     };
   }
 
-  const lastFile = async (name: string): Promise<SheetSource | null> => {
-    const env = name === 'Central Contact Center workbook'
-      ? process.env.CCC_WORKBOOK_FILE
-      : process.env.WINGWISE_WORKBOOK_FILE;
+  // Without Google, the newest matching workbook wins: an explicit path from
+  // the environment, else the newest export in Downloads (download the sheet
+  // as Excel and it is picked up), else the kept copy under backups/sheets,
+  // else wherever the importer last ran.
+  const lastFile = async (name: string, pattern: RegExp, env?: string): Promise<SheetSource | null> => {
+    if (env && existsSync(env)) return fileSource(env);
+    const found = newestMatching(pattern, [downloadsDir(), keptCopiesDir()]);
+    if (found) return fileSource(found);
     const src = await prisma.syncSource.findFirst({ where: { name }, orderBy: { updatedAt: 'desc' } });
-    const path = env || src?.workbookLabel;
-    return path && existsSync(path) ? fileSource(path) : null;
+    return src?.workbookLabel && existsSync(src.workbookLabel) ? fileSource(src.workbookLabel) : null;
   };
 
   return {
     connected: false,
     reason:
       'Google Sheets is not connected: no service-account key at GOOGLE_SERVICE_ACCOUNT_JSON. ' +
-      'Reading the last workbook files supplied instead. See docs/GOOGLE-SYNC-SETUP.md.',
-    ccc: await lastFile('Central Contact Center workbook'),
-    wingwise: await lastFile('Wing Wise workbook'),
+      'Reading the newest workbook files on this machine instead (Downloads, then backups/sheets). ' +
+      'See docs/GOOGLE-SYNC-SETUP.md.',
+    ccc: await lastFile('Central Contact Center workbook', /central.?contact.?cent.*\.xlsx$/i, process.env.CCC_WORKBOOK_FILE),
+    wingwise: await lastFile('Wing Wise workbook', /wing.?wise.*\.xlsx$/i, process.env.WINGWISE_WORKBOOK_FILE),
   };
+}
+
+export function downloadsDir(): string {
+  return join(process.env.USERPROFILE ?? homedir(), 'Downloads');
+}
+
+/** Where a workbook that was read from a file is kept, so it is never lost again. */
+export function keptCopiesDir(): string {
+  return resolve(process.env.BACKUP_DIR ?? './backups', 'sheets');
+}
+
+function newestMatching(pattern: RegExp, dirs: string[]): string | null {
+  let best: { path: string; mtime: number } | null = null;
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) {
+      if (!pattern.test(f) || f.startsWith('~$')) continue;
+      const path = join(dir, f);
+      const mtime = statSync(path).mtimeMs;
+      if (!best || mtime > best.mtime) best = { path, mtime };
+    }
+  }
+  return best?.path ?? null;
+}
+
+/**
+ * Copies a workbook that was just read into backups/sheets, stamped with the
+ * day, unless an identical copy is already there. Returns the kept path.
+ */
+export function keepCopy(filePath: string, stem: string): string | null {
+  try {
+    const dir = keptCopiesDir();
+    mkdirSync(dir, { recursive: true });
+    const size = statSync(filePath).size;
+    const day = new Date().toISOString().slice(0, 10);
+    const target = join(dir, `${stem}-${day}.xlsx`);
+    if (existsSync(target) && statSync(target).size === size) return target;
+    copyFileSync(filePath, target);
+    return target;
+  } catch {
+    return null;
+  }
 }

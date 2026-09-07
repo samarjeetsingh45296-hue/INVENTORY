@@ -6,7 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { RequestContextStore } from '../../common/context/request-context';
 import { GoogleSheetsAdapter } from '../sync/adapters/google-sheets.adapter';
-import { resolveSources } from './sheet-source';
+import { keepCopy, resolveSources } from './sheet-source';
 import { runCccImport } from './importers/ccc';
 import { runWingwiseImport } from './importers/wingwise';
 
@@ -111,6 +111,7 @@ export class ReconcileService {
           cccRunId = r.runId;
           seenAssetKeys = r.seen;
           summary.ccc = { ...r.counts, tabsFailed: r.tabsFailed };
+          if (sources.ccc.kind === 'file') summary.cccKeptCopy = keepCopy(sources.ccc.label, 'central-contact-center');
           if (r.tabsFailed.length) problems.push(`Contact Center workbook: ${r.tabsFailed.join('; ')}`);
         } catch (err) {
           problems.push(`Contact Center workbook could not be read: ${(err as Error).message}`);
@@ -126,6 +127,7 @@ export class ReconcileService {
           });
           wingRunId = r.runId;
           summary.wingwise = { ...r.counts, seats: r.seats.size, tabsFailed: r.tabsFailed };
+          if (sources.wingwise.kind === 'file') summary.wingwiseKeptCopy = keepCopy(sources.wingwise.label, 'wing-wise');
           if (r.tabsFailed.length) problems.push(`Wing Wise workbook: ${r.tabsFailed.join('; ')}`);
         } catch (err) {
           problems.push(`Wing Wise workbook could not be read: ${(err as Error).message}`);
