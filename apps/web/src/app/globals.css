@@ -332,15 +332,33 @@ body {
 .si-stack[data-leaving='true'] { opacity: 0; pointer-events: none; }
 
 /* ------------------------------------------------------------------ form */
+/* The wordmark. Its face changes every three seconds (the page picks the
+   font); the box keeps one fixed height so the card never shifts as faces
+   of different heights come and go. */
 .si-brand {
-  font-family: var(--font-brand), 'Sora', 'Segoe UI', system-ui, sans-serif;
-  font-weight: 800;
+  height: 30px;
+  display: flex;
+  align-items: center;
   font-size: 24px;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
+  line-height: 1;
   color: #ff2e2e;
+  white-space: nowrap;
 }
-.si-brand span { color: rgb(255 46 46 / 0.55); }
+.si-brand-face {
+  display: inline-block;
+  animation: si-brand-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.si-brand-dot { color: rgb(255 46 46 / 0.55); }
+/* The new face arrives out of a blur, rising a few pixels and settling
+   from a touch too wide - a soft morph rather than a hard swap. */
+@keyframes si-brand-in {
+  0%   { opacity: 0; filter: blur(8px); transform: translateY(6px) scaleX(1.06); }
+  60%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; filter: blur(0); transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .si-brand-face { animation: none; }
+}
 
 .si-page .input {
   height: 50px;

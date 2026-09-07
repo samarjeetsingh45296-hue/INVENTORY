@@ -6,17 +6,66 @@ import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { PasswordInput } from '@/components/password-input';
 import { AlertCircle } from 'lucide-react';
-import { Sora } from 'next/font/google';
+import {
+  Sora, Playfair_Display, Space_Grotesk, Syne, Unbounded, DM_Serif_Display, Righteous,
+} from 'next/font/google';
 
-// The brand wordmark gets its own face - a geometric display type, distinct
-// from the Inter the rest of the app is set in. Self-hosted by Next at build
-// time like Inter, so no runtime font request.
-const brandFont = Sora({
-  subsets: ['latin'],
-  weight: ['700', '800'],
-  display: 'swap',
-  variable: '--font-brand',
-});
+// The brand wordmark cycles through these faces, one every three seconds,
+// never the same one twice in a row. All are self-hosted by Next at build
+// time like Inter, so nothing is fetched at runtime. Each call must be a
+// module-level constant with literal options (a next/font rule).
+const fSora = Sora({ subsets: ['latin'], weight: '800', display: 'swap' });
+const fPlayfair = Playfair_Display({ subsets: ['latin'], weight: '800', style: ['normal', 'italic'], display: 'swap' });
+const fGrotesk = Space_Grotesk({ subsets: ['latin'], weight: '700', display: 'swap' });
+const fSyne = Syne({ subsets: ['latin'], weight: '800', display: 'swap' });
+const fUnbounded = Unbounded({ subsets: ['latin'], weight: '700', display: 'swap' });
+const fSerif = DM_Serif_Display({ subsets: ['latin'], weight: '400', display: 'swap' });
+const fRighteous = Righteous({ subsets: ['latin'], weight: '400', display: 'swap' });
+
+/** One look for the wordmark: a face plus the tracking that suits it. */
+const BRAND_FACES: Array<{ className: string; style?: React.CSSProperties }> = [
+  { className: fSora.className, style: { letterSpacing: '-0.03em' } },
+  { className: fPlayfair.className, style: { fontStyle: 'italic', letterSpacing: '-0.01em' } },
+  { className: fGrotesk.className, style: { letterSpacing: '-0.02em' } },
+  { className: fSyne.className, style: { letterSpacing: '-0.01em' } },
+  { className: fUnbounded.className, style: { letterSpacing: '-0.04em', fontSize: '21px' } },
+  { className: fSerif.className, style: { letterSpacing: '0' } },
+  { className: fRighteous.className, style: { letterSpacing: '0.01em' } },
+];
+
+/** How long each face stays before the next one takes over. */
+const BRAND_SWAP_MS = 3000;
+
+/**
+ * The wordmark. Every three seconds it swaps to a random different face;
+ * the new text blurs and rises in while the old one blurs away. Anyone who
+ * has asked for less motion keeps the first face.
+ */
+function Wordmark() {
+  const [face, setFace] = useState(0);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const id = window.setInterval(() => {
+      setFace((cur) => {
+        let next = cur;
+        while (next === cur) next = Math.floor(Math.random() * BRAND_FACES.length);
+        return next;
+      });
+      setTick((t) => t + 1);
+    }, BRAND_SWAP_MS);
+    return () => window.clearInterval(id);
+  }, []);
+  const look = BRAND_FACES[face] ?? { className: fSora.className };
+  return (
+    <div className="si-brand" aria-label={APP}>
+      {/* Keyed on the tick so each swap replays the entrance from the start. */}
+      <span key={tick} className={`si-brand-face ${look.className}`} style={look.style} aria-hidden>
+        {APP}<span className="si-brand-dot">.</span>
+      </span>
+    </div>
+  );
+}
 
 /** What went wrong, said inside the card. `fields` are the inputs to tint. */
 interface Fault {
@@ -223,13 +272,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${brandFont.variable} ${play ? 'si-play' : ''}`}>
+    <main className={`si-page relative grid min-h-screen place-items-center overflow-hidden p-4 ${play ? 'si-play' : ''}`}>
       <Backdrop />
 
       {/* The card sits in the middle of the screen over the picture. */}
       <section className="si-panel flex w-full max-w-[440px] flex-col p-8 sm:p-10">
         <Rise d={0}>
-          <div className="si-brand">{APP}<span>.</span></div>
+          <Wordmark />
         </Rise>
 
         <div className="flex flex-1 items-center py-8">
