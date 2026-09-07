@@ -36,6 +36,32 @@ async function main() {
     ]);
   }
   console.log(DRY ? `${fixed} seat code(s) would be repaired.` : `${fixed} seat code(s) repaired.`);
+
+  // Locker keys are seat codes too. A mangled key whose proper twin already
+  // exists is archived (its holder's allocation returned); otherwise it is
+  // renamed in place.
+  const lockers = await prisma.locker.findMany({ where: { deletedAt: null }, select: { id: true, lockerNo: true, keyNumber: true, branchId: true } });
+  let lockersFixed = 0;
+  for (const l of lockers) {
+    const clean = unmangleSeatCode(l.lockerNo);
+    if (clean === l.lockerNo) continue;
+    const twin = lockers.find((o) => o.id !== l.id && o.lockerNo === clean && o.branchId === l.branchId);
+    console.log(`locker ${l.lockerNo}  ->  ${twin ? `archived (duplicate of ${clean})` : clean}`);
+    lockersFixed += 1;
+    if (DRY) continue;
+    if (twin) {
+      await prisma.$transaction([
+        prisma.lockerAllocation.updateMany({
+          where: { lockerId: l.id, status: 'ACTIVE' },
+          data: { status: 'RETURNED', releasedAt: new Date(), keyReturned: true, remarks: 'Duplicate key record retired' },
+        }),
+        prisma.locker.update({ where: { id: l.id }, data: { deletedAt: new Date(), status: 'RETIRED', notes: `Duplicate of ${clean}` } }),
+      ]);
+    } else {
+      await prisma.locker.update({ where: { id: l.id }, data: { lockerNo: clean, keyNumber: l.keyNumber ? unmangleSeatCode(l.keyNumber) : l.keyNumber } });
+    }
+  }
+  console.log(DRY ? `${lockersFixed} locker key(s) would be repaired.` : `${lockersFixed} locker key(s) repaired.`);
 }
 
 main()

@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 
 import type { SheetSource } from '../sheet-source';
+import { unmangleSeatCode } from '../../sync/transform';
 
 /**
  * Set per run by runCccImport. Runs are serialised by the reconciliation
@@ -602,7 +603,8 @@ async function importLockers(c: Ctx, src: SheetSource): Promise<void> {
 
   for (const row of table.rows) {
     const r = row.raw;
-    const key = S(r['Key No.']);
+    // Key numbers are seat codes; "3E122" reads as a number to a spreadsheet.
+    const key = unmangleSeatCode(S(r['Key No.']));
     const name = S(r['Name']);
     const mis = S(r['MIS ID']);
 
@@ -626,6 +628,11 @@ async function importLockers(c: Ctx, src: SheetSource): Promise<void> {
 
     if (DRY) { bump(c, 'lockersCreated'); bump(c, 'rowsImported'); continue; }
 
+    // The sheet's remark is the word on the key: "return" means the key
+    // has come back, whoever the row still names.
+    const remark = S(r['Remarks (If any)']) || null;
+    const returned = /\breturn(ed)?\b/i.test(remark ?? '');
+
     let locker = await prisma.locker.findFirst({
       where: { branchId: c.branchId, lockerNo: key, deletedAt: undefined },
     });
@@ -635,15 +642,31 @@ async function importLockers(c: Ctx, src: SheetSource): Promise<void> {
           branchId: c.branchId,
           lockerNo: key,
           keyNumber: key,
-          status: employeeId ? LockerStatus.ALLOCATED : LockerStatus.AVAILABLE,
-          notes: S(r['Remarks (If any)']) || null,
+          status: employeeId && !returned ? LockerStatus.ALLOCATED : LockerStatus.AVAILABLE,
+          notes: remark,
           createdById: c.actorId,
         },
       });
       bump(c, 'lockersCreated');
+    } else if ((locker.notes ?? null) !== remark) {
+      locker = await prisma.locker.update({ where: { id: locker.id }, data: { notes: remark } });
     }
 
-    if (employeeId && employeeId !== 'dry-run') {
+    if (returned) {
+      const active = await prisma.lockerAllocation.findFirst({
+        where: { lockerId: locker.id, status: AllocationStatus.ACTIVE },
+      });
+      if (active) {
+        await prisma.lockerAllocation.update({
+          where: { id: active.id },
+          data: { status: AllocationStatus.RETURNED, releasedAt: new Date(), keyReturned: true, remarks: 'Sheet remark: returned' },
+        });
+        bump(c, 'lockerKeysReturned');
+      }
+      if (locker.status !== LockerStatus.AVAILABLE) {
+        await prisma.locker.update({ where: { id: locker.id }, data: { status: LockerStatus.AVAILABLE } });
+      }
+    } else if (employeeId && employeeId !== 'dry-run') {
       const active = await prisma.lockerAllocation.findFirst({
         where: { lockerId: locker.id, status: AllocationStatus.ACTIVE },
       });

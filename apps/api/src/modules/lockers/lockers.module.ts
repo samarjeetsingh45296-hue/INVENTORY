@@ -132,6 +132,56 @@ class LockersController {
     });
   }
 
+  /**
+   * Hands a key to someone else in one step: the current holder's
+   * allocation is closed as returned, the new one opened. Used by the edit
+   * control on the Lockers page.
+   */
+  @RequirePermissions('locker.allocate')
+  @Post(':id/reassign')
+  async reassign(
+    @Param('id') id: string,
+    @Body() body: { employeeId: string; keyIssued?: boolean },
+    @CurrentUser() user: Principal,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const locker = await tx.locker.findFirstOrThrow({ where: { id } });
+      const employee = await tx.employee.findFirstOrThrow({ where: { id: body.employeeId } });
+      const open = await tx.lockerAllocation.findFirst({
+        where: { lockerId: id, status: AllocationStatus.ACTIVE },
+        include: { employee: { select: { fullName: true } } },
+      });
+      if (open && open.employeeId === body.employeeId) return open;
+      if (open) {
+        await tx.lockerAllocation.update({
+          where: { id: open.id },
+          data: { status: AllocationStatus.RETURNED, releasedAt: new Date(), keyReturned: true, updatedById: user.userId },
+        });
+      }
+      const allocation = await tx.lockerAllocation.create({
+        data: {
+          lockerId: id, employeeId: body.employeeId,
+          status: AllocationStatus.ACTIVE, allocatedAt: new Date(),
+          keyIssued: body.keyIssued ?? true, createdById: user.userId,
+        },
+      });
+      await tx.locker.update({
+        where: { id },
+        data: { status: LockerStatus.ALLOCATED, updatedById: user.userId },
+      });
+      await this.audit.record({
+        action: AuditAction.ALLOCATE,
+        entityType: 'Locker',
+        entityId: id,
+        entityLabel: `Locker ${locker.lockerNo}`,
+        summary: open
+          ? `Locker ${locker.lockerNo} moved from ${open.employee.fullName} to ${employee.fullName}`
+          : `Locker ${locker.lockerNo} issued to ${employee.fullName}`,
+      });
+      return allocation;
+    });
+  }
+
   @RequirePermissions('locker.allocate')
   @Post(':id/release')
   async release(
