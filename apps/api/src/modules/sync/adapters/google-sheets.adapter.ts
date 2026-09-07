@@ -53,7 +53,7 @@ export class GoogleSheetsAdapter implements SourceAdapter {
     const hit = this.tabCache.get(spreadsheetId);
     if (hit) return hit;
     const api = await this.sheets();
-    const meta = await api.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
+    const meta = await api.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' }, { timeout: 60_000 });
     const titles = (meta.data.sheets ?? []).map((s) => s.properties?.title ?? '').filter(Boolean);
     this.tabCache.set(spreadsheetId, titles);
     return titles;
@@ -105,7 +105,7 @@ export class GoogleSheetsAdapter implements SourceAdapter {
         // Formatted values, so dates read as they look in the sheet.
         valueRenderOption: 'FORMATTED_VALUE',
         dateTimeRenderOption: 'FORMATTED_STRING',
-      });
+      }, { timeout: 60_000 });
       values = (res.data.values ?? []) as string[][];
     } catch (err) {
       const message = (err as Error).message;

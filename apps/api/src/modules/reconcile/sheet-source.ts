@@ -58,7 +58,18 @@ export function googleSource(spreadsheetId: string, adapter: GoogleSheetsAdapter
       if (!tab) {
         throw new Error(`No tab like "${sheetName}" in the sheet (it has: ${titles.join(', ')})`);
       }
-      return adapter.read({ spreadsheetId, sheetName: tab, headerRow });
+      // Google occasionally answers a good request with "not found" or a
+      // timeout; three tries a few seconds apart ride that out.
+      let lastErr: unknown;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          return await adapter.read({ spreadsheetId, sheetName: tab, headerRow });
+        } catch (err) {
+          lastErr = err;
+          if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 4000));
+        }
+      }
+      throw lastErr;
     },
   };
 }
