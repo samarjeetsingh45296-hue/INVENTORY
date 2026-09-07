@@ -22,6 +22,7 @@
     "revoke:role": "ts-node --transpile-only scripts/revoke-role.ts",
     "import:ccc": "ts-node --transpile-only scripts/import-ccc.ts",
     "import:wingwise": "ts-node --transpile-only scripts/import-wingwise.ts",
+    "fix:seat-codes": "ts-node --transpile-only scripts/fix-seat-codes.ts",
     "cleanup:nomis": "ts-node --transpile-only scripts/cleanup-nomis.ts",
     "export:mongo": "ts-node --transpile-only scripts/export-to-mongodb.ts"
   },

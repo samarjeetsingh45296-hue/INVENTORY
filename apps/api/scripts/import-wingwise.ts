@@ -18,6 +18,7 @@ import {
   SyncMode, SyncRowStatus, SyncStatus, WorkstationStatus,
 } from '@prisma/client';
 import { FileAdapter } from '../src/modules/sync/adapters/file.adapter';
+import { unmangleSeatCode } from '../src/modules/sync/transform';
 
 const prisma = new PrismaClient();
 const adapter = new FileAdapter();
@@ -317,7 +318,8 @@ async function main(): Promise<void> {
         let stations = 0;
 
         for (const row of table.rows) {
-          const seat = S(row.raw['Station Id']);
+          // "3E114" reads as a number to a spreadsheet; put it back.
+          const seat = unmangleSeatCode(S(row.raw['Station Id']));
           if (!seat) continue;
 
           // A "Wing B" row is a section marker, not a station.

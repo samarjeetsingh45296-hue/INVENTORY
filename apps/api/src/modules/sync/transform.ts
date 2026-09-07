@@ -101,6 +101,18 @@ function normaliseYear(y: number): number {
   return y < 70 ? 2000 + y : 1900 + y;
 }
 
+/**
+ * Puts a seat code back after a spreadsheet has read it as a number.
+ * "3E114" and "4E173" look like scientific notation, so they arrive as
+ * "3e+114" / "4E+173" (or, fully evaluated, "3e114"). Any other value is
+ * returned untouched.
+ */
+export function unmangleSeatCode(raw: string): string {
+  const s = raw.trim();
+  const m = /^(\d)[eE]\+?(\d{3})$/.exec(s);
+  return m ? `${m[1]}E${m[2]}` : s;
+}
+
 /** Strips currency symbols, thousands separators and trailing "/-". */
 export function parseNumber(raw: string): TransformResult<number> {
   if (isEmptyish(raw)) return ok(null as unknown as number);
