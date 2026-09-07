@@ -174,9 +174,9 @@ export default function VouchersPage() {
                     <td className="td num font-medium text-[rgb(var(--text))]">
                       {v.serialNo ?? '-'}
                     </td>
-                    <td className="td font-mono text-[11px]">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Ticket size={12} className="text-[rgb(var(--muted))]" />
+                    <td className="td whitespace-nowrap font-mono text-[14px] tracking-wide text-[rgb(var(--text))]">
+                      <span className="inline-flex items-center gap-2">
+                        <Ticket size={14} className="text-[rgb(var(--muted))]" />
                         {v.voucherNo}
                       </span>
                     </td>

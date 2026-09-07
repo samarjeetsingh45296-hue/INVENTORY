@@ -876,17 +876,7 @@ async function importVouchers(c: Ctx, src: SheetSource): Promise<void> {
       const voucherNo = S(r['Voucher No']);
       if (!voucherNo) { bump(c, 'voucherBlank'); continue; }
 
-      const importKey = `ccc:PVR:${row.rowNumber}`;
-      if (!DRY) {
-        const already = await prisma.voucher.findFirst({
-          where: { sourceRef: importKey, deletedAt: undefined },
-        });
-        if (already) { bump(c, 'vouchersUnchanged'); continue; }
-      } else {
-        bump(c, 'vouchersCreated');
-        continue;
-      }
-
+      const serialNo = Number(digits(r['Sr.No'])) || null;
       const issuedToName = S(r['ISSUED TO']);
       const issued = Boolean(issuedToName);
 
@@ -894,16 +884,48 @@ async function importVouchers(c: Ctx, src: SheetSource): Promise<void> {
       // the name is kept either way, because the sheet records people who may
       // not be on file.
       const employeeId = issued ? c.employees.get(normName(issuedToName)) ?? null : null;
+      const holderId = employeeId && employeeId !== 'dry-run' ? employeeId : null;
+
+      // A card is its serial number on the sheet, not its row. A card seen
+      // before is brought up to the sheet: the card number as Google holds
+      // it (Excel had rounded these 16-digit numbers to 15 places, so ten
+      // cards at a time shared one number), who it is issued to, and when.
+      const importKey = serialNo ? `ccc:PVR:sr:${serialNo}` : `ccc:PVR:no:${voucherNo}`;
+      if (DRY) { bump(c, 'vouchersCreated'); continue; }
+      const already =
+        (await prisma.voucher.findFirst({ where: { sourceRef: importKey, deletedAt: null } })) ??
+        (serialNo
+          ? await prisma.voucher.findFirst({ where: { serialNo, sourceRef: { startsWith: 'ccc:PVR:' }, deletedAt: null } })
+          : null);
+      if (already) {
+        const patch: Record<string, unknown> = {};
+        if (already.sourceRef !== importKey) patch.sourceRef = importKey;
+        if (already.voucherNo !== voucherNo) patch.voucherNo = voucherNo;
+        if ((already.issuedToName ?? null) !== (issuedToName || null)) patch.issuedToName = issuedToName || null;
+        if (holderId && already.issuedToEmployeeId !== holderId) patch.issuedToEmployeeId = holderId;
+        if (issued && already.status === VoucherStatus.AVAILABLE) patch.status = VoucherStatus.ISSUED;
+        const issuedAt = toDate(r['Issued Date']);
+        if (issuedAt && !already.issuedAt) patch.issuedAt = issuedAt;
+        const purpose = S(r['Purpose']) || null;
+        if (purpose && !already.purpose) patch.purpose = purpose;
+        if (Object.keys(patch).length) {
+          await prisma.voucher.update({ where: { id: already.id }, data: patch });
+          bump(c, 'vouchersUpdated');
+        } else {
+          bump(c, 'vouchersUnchanged');
+        }
+        continue;
+      }
 
       await prisma.voucher.create({
         data: {
           branchId: c.branchId,
           kind: 'PVR_MOVIE',
           voucherNo,
-          serialNo: Number(digits(r['Sr.No'])) || null,
+          serialNo,
           receivedAt: toDate(r['Date Recieved']),
           status: issued ? VoucherStatus.ISSUED : VoucherStatus.AVAILABLE,
-          issuedToEmployeeId: employeeId && employeeId !== 'dry-run' ? employeeId : null,
+          issuedToEmployeeId: holderId,
           issuedToName: issuedToName || null,
           issuedByName: S(r['ISSUED BY']) || null,
           issuedAt: toDate(r['Issued Date']),
