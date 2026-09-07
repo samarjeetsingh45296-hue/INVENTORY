@@ -689,7 +689,7 @@ function ContextCard({
   const queryClient = useQueryClient();
   const manageable = canManage && opened.base !== null;
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ categoryId: '', model: '', serialNumber: '' });
+  const [form, setForm] = useState({ item: '', model: '', serialNumber: '' });
   const categories = useQuery({
     queryKey: ['categories'],
     queryFn: () => api<Array<{ id: string; name: string }>>('/assets/categories'),
@@ -702,7 +702,7 @@ function ContextCard({
   const add = useMutation({
     mutationFn: () => api(opened.base as string, { method: 'POST', body: form }),
     onSuccess: () => {
-      setForm({ categoryId: '', model: '', serialNumber: '' });
+      setForm({ item: '', model: '', serialNumber: '' });
       setAdding(false);
       refresh();
     },
@@ -772,15 +772,17 @@ function ContextCard({
   const basicHave = slots.filter((s) => s.item).length;
   const basicShort = BASIC_SLOTS.length - basicHave;
 
-  // What Add Item may add here: the basic categories only on a counsellor
-  // seat, anything elsewhere.
-  const addable = (categories.data ?? []).filter((c) =>
-    opened.tier === 'custom' || opened.occupant || isBasicCategory(c.name));
+  // Kinds already known, offered as suggestions while typing - the field
+  // itself takes anything. A counsellor seat is offered the basic kinds only.
+  const suggestions = (categories.data ?? [])
+    .filter((c) => opened.tier === 'custom' || opened.occupant || isBasicCategory(c.name))
+    .map((c) => c.name)
+    .sort();
 
-  /** A missing basic slot opens the form with that kind of item chosen. */
+  /** A missing basic slot opens the form with that kind of item written in. */
   const startAdd = (slot: Slot) => {
-    const c = (categories.data ?? []).find((x) => slot.match.test(x.name.trim()));
-    setForm((f) => ({ ...f, categoryId: c?.id ?? '' }));
+    const known = (categories.data ?? []).find((x) => slot.match.test(x.name.trim()));
+    setForm((f) => ({ ...f, item: known?.name ?? slot.label.split(' / ')[0] ?? '' }));
     setAdding(true);
   };
 
@@ -1128,17 +1130,19 @@ function ContextCard({
                style={{ '--i': 0 } as React.CSSProperties}>
             <label className="block sm:col-span-3">
               <span className="fv-label">Item</span>
-              <select
+              <input
                 className="fv-input"
-                value={form.categoryId}
+                value={form.item}
+                placeholder="What is it? e.g. Laptop, Monitor, USB C Adapter"
                 autoFocus
-                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-              >
-                <option value="">Choose what kind of item...</option>
-                {addable.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                list="fv-item-kinds"
+                autoComplete="off"
+                onChange={(e) => setForm((f) => ({ ...f, item: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter' && form.item.trim()) { e.preventDefault(); add.mutate(); } }}
+              />
+              <datalist id="fv-item-kinds">
+                {suggestions.map((name) => <option key={name} value={name} />)}
+              </datalist>
               {opened.tier === 'basic' && (
                 <span className="mt-1 block text-[10.5px] text-white/40">
                   Counsellor seats hold the basic kit only.
@@ -1178,7 +1182,7 @@ function ContextCard({
               type="button"
               className="fv-cta"
               data-loading={add.isPending}
-              disabled={add.isPending || (adding && !form.categoryId)}
+              disabled={add.isPending || (adding && !form.item.trim())}
               aria-expanded={adding}
               onClick={() => {
                 if (!adding) { setEditing(null); setAdding(true); return; }
@@ -1188,7 +1192,7 @@ function ContextCard({
               <span className="fv-cta-icon" aria-hidden>
                 {add.isPending ? <span className="fv-spin" /> : <Plus size={15} strokeWidth={2.4} />}
               </span>
-              <span>{add.isPending ? 'Adding...' : adding && form.categoryId ? 'Add Item' : 'Add Item'}</span>
+              <span>{add.isPending ? 'Adding...' : 'Add Item'}</span>
               <span className="fv-cta-shine" aria-hidden />
             </button>
           </div>

@@ -187,7 +187,7 @@ async function categoryId(code: string, name: string): Promise<string> {
 }
 
 /** Maps the free-text item names in the sheet onto categories. */
-function categoryFor(item: string): { code: string; name: string } {
+export function categoryFor(item: string): { code: string; name: string } {
   const t = item.toLowerCase();
   if (t.includes('laptop') && t.includes('charger')) return { code: 'CHG', name: 'Charger' };
   if (t.includes('cug') && t.includes('charger'))    return { code: 'CHG', name: 'Charger' };

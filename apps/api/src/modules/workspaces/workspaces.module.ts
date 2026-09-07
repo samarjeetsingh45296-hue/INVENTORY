@@ -12,6 +12,15 @@ import { AuditService } from '../audit/audit.service';
 import type { Principal } from '@inventory/shared';
 import { RequirePermissions } from '../../common/decorators';
 import { PRISMA, ExtendedPrisma } from '../../common/prisma/prisma.service';
+import { categoryFor } from '../reconcile/importers/ccc';
+
+/** What the add-item form sends: the kind typed as text, or a category id. */
+interface AddItemBody {
+  item?: string;
+  categoryId?: string;
+  model?: string;
+  serialNumber?: string;
+}
 
 /**
  * Workstations: the seats on the floor and the kit at each one.
@@ -283,20 +292,48 @@ class WorkstationsController {
     });
   }
 
+  /**
+   * The kind of item, from what was typed. An existing category by that
+   * name wins; otherwise the sheet importer's own mapping decides ("USB C
+   * Adapter" is an Adapter, "MacBook Air" a Laptop), creating the category
+   * on first use. When the typed words say more than the category does and
+   * no model was given, they become the model, so "MacBook Air" reads as
+   * "MacBook Air", not "Laptop".
+   */
+  private async resolveCategory(body: AddItemBody) {
+    if (body.categoryId) {
+      const category = await this.prisma.assetCategory.findFirst({ where: { id: body.categoryId } });
+      if (!category) throw new BadRequestException('Choose what kind of item this is.');
+      return { category, model: undefined as string | undefined };
+    }
+    const typed = body.item?.replace(/\s+/g, ' ').trim() ?? '';
+    if (!typed) throw new BadRequestException('Type what kind of item this is.');
+
+    const byName = await this.prisma.assetCategory.findFirst({
+      where: { name: { equals: typed, mode: 'insensitive' } },
+    });
+    if (byName) return { category: byName, model: undefined };
+
+    const { code, name } = categoryFor(typed);
+    const category =
+      (await this.prisma.assetCategory.findFirst({ where: { code } })) ??
+      (await this.prisma.assetCategory.create({ data: { code, name, tagPrefix: code.slice(0, 4) } }));
+    const model = typed.toLowerCase() === name.toLowerCase() ? undefined : typed;
+    return { category, model };
+  }
+
   /** Admin adds an item at a seat: the asset is created and issued to it. */
   @RequirePermissions('workspace.manage')
   @Post(':id/equipment')
   async addEquipment(
     @Param('id') id: string,
-    @Body() body: { categoryId: string; model?: string; serialNumber?: string },
+    @Body() body: AddItemBody,
     @CurrentUser() actor: Principal,
   ) {
     const station = await this.prisma.workstation.findFirst({ where: { id } });
     if (!station) throw new NotFoundException('Seat not found');
-    const category = await this.prisma.assetCategory.findFirst({
-      where: { id: body.categoryId },
-    });
-    if (!category) throw new BadRequestException('Choose what kind of item this is.');
+    const { category, model: typedModel } = await this.resolveCategory(body);
+    body = { ...body, model: body.model?.trim() || typedModel };
 
     const serial = body.serialNumber?.trim() || null;
     if (serial) {
@@ -520,13 +557,13 @@ class WorkstationsController {
   @Post('plates/:employeeId/equipment')
   async addPlateEquipment(
     @Param('employeeId') employeeId: string,
-    @Body() body: { categoryId: string; model?: string; serialNumber?: string },
+    @Body() body: AddItemBody,
     @CurrentUser() actor: Principal,
   ) {
     const emp = await this.prisma.employee.findFirst({ where: { id: employeeId } });
     if (!emp) throw new NotFoundException('That cabin has no matching record.');
-    const category = await this.prisma.assetCategory.findFirst({ where: { id: body.categoryId } });
-    if (!category) throw new BadRequestException('Choose what kind of item this is.');
+    const { category, model: typedModel } = await this.resolveCategory(body);
+    body = { ...body, model: body.model?.trim() || typedModel };
 
     const serial = body.serialNumber?.trim() || null;
     if (serial) {
