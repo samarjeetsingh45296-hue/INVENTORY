@@ -569,8 +569,10 @@ export function FloorView() {
 
   if (q.isError) return <ErrorNote error={q.error} />;
 
+  // The lower row has three zones under the upper row's four; it sits
+  // centred beneath them rather than hugging the left.
   const renderRow = (zones: ZoneSpec[], bandBelow: boolean) => (
-    <div className="flex items-stretch gap-2">
+    <div className={`flex items-stretch gap-2 ${zones.length < ROW1.length ? 'justify-center' : ''}`}>
       {zones.map((zone, i) => (
         <div key={i} className="contents">
           {i > 0 && <Lobby />}
