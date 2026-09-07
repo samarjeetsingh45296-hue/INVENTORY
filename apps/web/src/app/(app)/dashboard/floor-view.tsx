@@ -251,17 +251,9 @@ function SeatBox({ seat, onOpen }: { seat: Seat; onOpen: OpenFn }) {
         : `${seat.equipment.length} item(s)${seat.missing.length ? ` - missing ${seat.missing.join(', ')}` : ''}`}
       data-selected={selected || undefined}
       data-team={who ? occupantTeam(who).id ?? 'other' : undefined}
-      className="fv-target flex h-8 w-full items-center justify-center rounded border font-mono
-                 text-[10px] font-semibold shadow-sm transition hover:scale-[1.08] hover:shadow"
-      style={{
-        // Status lives in the tint and border; the code itself stays in the
-        // page's text color so it is legible in the light theme too.
-        background: seat.missing.length ? 'rgb(var(--warn-bg))' : 'rgb(var(--ok-bg))',
-        color: 'rgb(var(--text))',
-        borderColor: seat.missing.length
-          ? 'rgb(var(--warn) / 0.5)'
-          : 'rgb(var(--ok) / 0.5)',
-      }}
+      data-state={seat.missing.length ? 'gap' : 'ok'}
+      className="fv-target fv-seat flex h-8 w-full items-center justify-center rounded border font-mono
+                 shadow-sm transition hover:scale-[1.08] hover:shadow"
     >
       {seat.seatCode}
     </button>
@@ -296,7 +288,7 @@ function WingStack({
     <div className={`space-y-1 ${grow ? 'flex-1' : 'flex-none'}`}>
       <SeatRow seats={top} cols={cfg.cols} onOpen={onOpen} />
       <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
-                      font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
+                      font-semibold uppercase tracking-[0.25em] text-[rgb(var(--text-2))]">
         Wing {wingKey.slice(1)}
       </div>
       <SeatRow seats={bottom} cols={cfg.cols} onOpen={onOpen} />
@@ -339,7 +331,7 @@ function CabinBox({
 function Lobby() {
   return (
     <div className="flex w-6 items-center justify-center self-stretch rounded-md bg-[rgb(var(--viz-2)/0.10)]">
-      <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]"
+      <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[rgb(var(--text-2))]"
             style={{ writingMode: 'vertical-rl' }}>
         Lobby
       </span>
@@ -426,7 +418,7 @@ function ZoneBlock({
           {/* The split wing's top row and band run the full width... */}
           <SeatRow seats={splitSeats[0]} cols={splitCfg.cols} onOpen={onOpen} />
           <div className="rounded-sm bg-[rgb(var(--surface-3))] py-0.5 text-center text-[9px]
-                          font-semibold uppercase tracking-[0.25em] text-[rgb(var(--muted))]">
+                          font-semibold uppercase tracking-[0.25em] text-[rgb(var(--text-2))]">
             Wing {zone.rightSpan.splitWing.slice(1)}
           </div>
           {/* ...then the tall box starts beside its bottom row and spans the

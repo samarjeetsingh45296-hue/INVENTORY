@@ -537,6 +537,20 @@ body {
 .fv-map { transition: filter 0.35s ease, opacity 0.35s ease; }
 .fv-map[data-dim='true'] { filter: blur(4px); opacity: 0.85; }
 
+/* Seat boxes. Status is the tint and the edge; the code stays dark on a
+   pale tint in the light theme and light on a deep one in the dark theme,
+   so it reads at a glance in both. */
+.fv-seat {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-width: 1.5px;
+}
+.fv-seat[data-state='ok']  { background: #dcfce7; border-color: #4ade80; color: #14532d; }
+.fv-seat[data-state='gap'] { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
+.dark .fv-seat[data-state='ok']  { background: rgb(var(--ok-bg));   border-color: rgb(var(--ok) / 0.55);   color: rgb(var(--text)); }
+.dark .fv-seat[data-state='gap'] { background: rgb(var(--warn-bg)); border-color: rgb(var(--warn) / 0.6); color: rgb(var(--text)); }
+
 /* No echo, outline or glow on the clicked box: the card beside it is the
    only thing that marks the selection. */
 
