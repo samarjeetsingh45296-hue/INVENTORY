@@ -46,6 +46,19 @@ export class GoogleSheetsAdapter implements SourceAdapter {
     return this.client;
   }
 
+  private tabCache = new Map<string, string[]>();
+
+  /** Every tab title in a spreadsheet, in order. Cached per process. */
+  async listTabs(spreadsheetId: string): Promise<string[]> {
+    const hit = this.tabCache.get(spreadsheetId);
+    if (hit) return hit;
+    const api = await this.sheets();
+    const meta = await api.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
+    const titles = (meta.data.sheets ?? []).map((s) => s.properties?.title ?? '').filter(Boolean);
+    this.tabCache.set(spreadsheetId, titles);
+    return titles;
+  }
+
   /** Resolves a numeric gid (what the sheet URL contains) to its tab title. */
   private async titleForGid(
     spreadsheetId: string,

@@ -67,6 +67,10 @@ interface Ctx {
   rows: Array<Record<string, unknown>>;
   /** Import keys of every asset row read this run. */
   seen: Set<string>;
+  /** How many identical rows (same holder, item, model, serial) seen so far. */
+  ordinals: Map<string, number>;
+  /** Existing assets already matched to a row this run. */
+  claimed: Set<string>;
 }
 
 const bump = (c: Ctx, k: string, n = 1) => { c.counts[k] = (c.counts[k] ?? 0) + n; };
@@ -189,7 +193,10 @@ function categoryFor(item: string): { code: string; name: string } {
   if (t.includes('cug') && t.includes('charger'))    return { code: 'CHG', name: 'Charger' };
   if (t.includes('charger'))                          return { code: 'CHG', name: 'Charger' };
   if (t.includes('laptop stand'))                     return { code: 'STND', name: 'Laptop Stand' };
-  if (t.includes('laptop'))                           return { code: 'LPT', name: 'Laptop' };
+  if (t.includes('laptop') || t.includes('macbook'))  return { code: 'LPT', name: 'Laptop' };
+  if (t.includes('all in one') || t.includes('all-in-one')) return { code: 'DSK', name: 'Desktop' };
+  if (/\bcpu\b/.test(t))                              return { code: 'DSK', name: 'Desktop' };
+  if (t.includes('screen'))                           return { code: 'MON', name: 'Monitor' };
   if (t.includes('desktop'))                          return { code: 'DSK', name: 'Desktop' };
   if (t.includes('monitor'))                          return { code: 'MON', name: 'Monitor' };
   if (t.includes('headphone') || t.includes('headset')) return { code: 'HP', name: 'Headphone' };
@@ -224,36 +231,141 @@ async function nextTag(prefix: string): Promise<string> {
   }
 }
 
+/**
+ * A sheet row's identity, independent of where the row sits: the holder,
+ * the item, its model and serial, and an ordinal for identical repeats
+ * ("Laptop Charger -" twice under one name are two chargers). Rows can be
+ * inserted, sorted or moved and each still finds the asset it made.
+ */
+const slug = (v: string | null | undefined) =>
+  (v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || '-';
+
+function identityKey(
+  c: Ctx,
+  spec: { tab: string; holderKey: string; item: string; model: string | null; serial: string | null; tagOverride?: string | null },
+): string {
+  const base = spec.tagOverride
+    ? `ccc:${spec.tab}:tag:${spec.tagOverride}`
+    : `ccc:${spec.tab}:${spec.holderKey}:${slug(spec.item)}|${slug(spec.model)}|${spec.serial ?? ''}`;
+  const n = (c.ordinals.get(base) ?? 0) + 1;
+  c.ordinals.set(base, n);
+  return `${base}#${n}`;
+}
+
+/**
+ * An asset from before identity keys existed (sourceRef "ccc:<tab>:<row>")
+ * that is the same thing as this row: same holder, same kind, same model
+ * and serial. Oldest first, so an original always wins over a copy.
+ */
+async function adoptLegacy(
+  c: Ctx,
+  spec: { tab: string; item: string; model: string | null; serial: string | null; employeeId: string | null; tagOverride?: string | null; categoryId: string },
+): Promise<string | null> {
+  const legacy = await prisma.asset.findMany({
+    where: {
+      deletedAt: null,
+      sourceRef: { startsWith: `ccc:${spec.tab}:` },
+      ...(spec.serial ? { serialNumber: spec.serial } : {}),
+    },
+    include: { allocations: { where: { status: AllocationStatus.ACTIVE }, select: { employeeId: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const norm = (v: string | null | undefined) => (v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  // A row with a real asset number adopts the record that already carries
+  // it, or - when the sheet has only now given the item its number - the
+  // same kind of item that still wears a generated tag.
+  const generatedTag = (t: string) => /^[A-Z]{2,5}-\d{4}$/.test(t);
+  for (const a of legacy) {
+    if (c.claimed.has(a.id)) continue;
+    if (!/^ccc:[^:]+:\d+$/.test(a.sourceRef ?? '')) continue;
+    if (spec.tagOverride) {
+      if (a.assetTag === spec.tagOverride) return a.id;
+      if (!generatedTag(a.assetTag)) continue;
+      const sameKind = a.categoryId === spec.categoryId || norm(a.notes).startsWith(norm(spec.item));
+      if (!sameKind) continue;
+      if (a.model && spec.model && norm(a.model) !== norm(spec.model)) continue;
+      if ((spec.employeeId ?? null) !== (a.allocations[0]?.employeeId ?? null)) continue;
+      const taken = await prisma.asset.findFirst({ where: { assetTag: spec.tagOverride } });
+      if (taken) continue;
+      if (!DRY) await prisma.asset.update({ where: { id: a.id }, data: { assetTag: spec.tagOverride } });
+      bump(c, 'assetsRetagged');
+      return a.id;
+    }
+    {
+      const sameKind = a.categoryId === spec.categoryId || norm(a.notes).startsWith(norm(spec.item));
+      if (!sameKind) continue;
+      if (a.model && spec.model && norm(a.model) !== norm(spec.model)) continue;
+      if (a.serialNumber && spec.serial && norm(a.serialNumber) !== norm(spec.serial)) continue;
+      const holder = a.allocations[0]?.employeeId ?? null;
+      if ((spec.employeeId ?? null) !== holder) continue;
+    }
+    return a.id;
+  }
+  return null;
+}
+
 /** Creates an asset and, when a holder is given, an active allocation for it. */
 async function createAssetWithAllocation(
   c: Ctx,
   spec: {
+    tab: string;
+    /** Who the row belongs to: an employee id, "stock", or a tag. */
+    holderKey: string;
     item: string; model: string | null; serial: string | null;
     tagOverride?: string | null; employeeId: string | null; holderLabel: string | null;
     notes?: string | null; status?: AssetStatus;
-    /** Stable identity of the source row, e.g. "ccc:Core team:14". */
-    importKey: string;
   },
 ): Promise<string | null> {
+  const importKey = identityKey(c, spec);
   const { code, name } = categoryFor(spec.item);
   const catId = await categoryId(code, name);
-  c.seen.add(spec.importKey);
+  c.seen.add(importKey);
 
   // A row already imported must resolve to the asset it created, not to a new
   // one. Serial numbers cover the rows that have them; this covers the rest,
   // which is most of them - "Laptop Charger" with model "-" has nothing else
   // to identify it, and without this a re-run silently doubled the inventory.
   const already = await prisma.asset.findFirst({
-    where: { sourceRef: spec.importKey, deletedAt: undefined },
+    where: { sourceRef: importKey, deletedAt: null },
   });
-  if (already) { bump(c, 'assetsUnchanged'); return already.id; }
+  if (already) {
+    c.claimed.add(already.id);
+    // The sheet is the truth for what it says; a model it now names is
+    // filled in where the site had none.
+    if (!DRY && !already.model && spec.model) {
+      await prisma.asset.update({ where: { id: already.id }, data: { model: spec.model } });
+      bump(c, 'assetsBackfilled');
+    }
+    bump(c, 'assetsUnchanged');
+    return already.id;
+  }
+
+  // A row that predates identity keys: the same item under its old row key.
+  const adopted = await adoptLegacy(c, { ...spec, categoryId: catId });
+  if (adopted) {
+    c.claimed.add(adopted);
+    if (!DRY) {
+      const cur = await prisma.asset.findFirst({ where: { id: adopted }, select: { model: true, serialNumber: true } });
+      await prisma.asset.update({
+        where: { id: adopted },
+        data: {
+          sourceRef: importKey,
+          categoryId: catId,
+          ...(!cur?.model && spec.model ? { model: spec.model } : {}),
+          ...(!cur?.serialNumber && spec.serial ? { serialNumber: spec.serial } : {}),
+        },
+      });
+    }
+    bump(c, 'assetsAdopted');
+    return adopted;
+  }
 
   // A serial we have seen before is the same physical item, not a new one.
   if (spec.serial) {
     const dupe = await prisma.asset.findFirst({
       where: { serialNumber: spec.serial, deletedAt: undefined },
     });
-    if (dupe) { bump(c, 'assetsDuplicate'); return dupe.id; }
+    if (dupe) { c.claimed.add(dupe.id); bump(c, 'assetsDuplicate'); return dupe.id; }
   }
 
   // Return a sentinel rather than null: callers branch on "did I get an id",
@@ -273,7 +385,7 @@ async function createAssetWithAllocation(
       branchId: c.branchId,
       notes: [spec.item, spec.notes].filter(Boolean).join(' - ') || null,
       sourceType: SourceType.EXCEL_UPLOAD,
-      sourceRef: spec.importKey,
+      sourceRef: importKey,
       createdById: c.actorId,
     },
   });
@@ -366,7 +478,8 @@ async function importCoreTeam(c: Ctx, src: SheetSource): Promise<void> {
     // "(86911...) (86911...)" in the Model column is a pair of IMEIs.
     const imeis = model.match(/\d{14,16}/g) ?? [];
     const id = await createAssetWithAllocation(c, {
-      importKey: `ccc:Core team:${row.rowNumber}`,
+      tab: 'Core team',
+      holderKey: holderId,
       item,
       model: imeis.length ? null : (model && model !== '-' ? model : null),
       serial: imeis[0] ?? null,
@@ -459,7 +572,8 @@ async function importCug(c: Ctx, src: SheetSource): Promise<void> {
     const phoneModel = S(r['Phone Model']);
     if (imei && phoneModel) {
       await createAssetWithAllocation(c, {
-        importKey: `ccc:CUG:${row.rowNumber}`,
+        tab: 'CUG',
+        holderKey: employeeId ?? 'none',
         item: 'CUG Phone',
         model: phoneModel,
         serial: imei,
@@ -585,7 +699,10 @@ async function importStock(c: Ctx, src: SheetSource): Promise<void> {
 
       const tag = extractTag(rawNo);
       const holderNote = rawNo.match(/\(([^)]*)\)/)?.[1]?.trim() ?? '';
-      const assigned = Boolean(holderNote) && !/not\s*assign/i.test(holderNote);
+      // "(Big)", "(Small)", "(SSD Lenovo)" describe the item, not a holder.
+      const looksLikePerson = /^[A-Za-z]+(\s+[A-Za-z.]+)+$/.test(holderNote)
+        && !/(big|small|new|old|spare|stock|damaged?|broken|ssd|lenovo|hp|acer|dell|asus|not)/i.test(holderNote);
+      const assigned = looksLikePerson && !/not\s*assign/i.test(holderNote);
 
       // The sheet lists the same tag twice. An asset tag identifies one
       // physical item, so the second mention is the same machine, not another.
@@ -605,7 +722,8 @@ async function importStock(c: Ctx, src: SheetSource): Promise<void> {
       const employeeId = assigned ? await upsertEmployee(c, '', holderNote) : null;
 
       const id = await createAssetWithAllocation(c, {
-        importKey: `ccc:Stock:${row.rowNumber}`,
+        tab: 'Stock',
+        holderKey: employeeId ?? 'stock',
         item: type || 'Stock item',
         model: type || null,
         // With no usable tag, keep the raw text as the serial so the part
@@ -650,7 +768,8 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
     }
     if (!assetId) {
       assetId = await createAssetWithAllocation(c, {
-        importKey: `ccc:Repair:${row.rowNumber}`,
+        tab: 'Repair',
+        holderKey: 'repair',
         item: 'CUG Phone', model: S(r['Phone Model']) || null, serial: imei || null,
         employeeId: null, holderLabel: null,
         notes: 'Created from the Repair tab', status: AssetStatus.IN_REPAIR,
@@ -705,7 +824,8 @@ async function importHeadphones(c: Ctx, src: SheetSource): Promise<void> {
     const mis = S(r['MIS ID']);
     const employeeId = await upsertEmployee(c, mis, name);
     const id = await createAssetWithAllocation(c, {
-      importKey: `ccc:Headphone:${row.rowNumber}`,
+      tab: 'Headphone',
+      holderKey: employeeId ?? 'none',
       item: S(r['Assigned Item']) || 'Headphone',
       model: null, serial: null,
       employeeId, holderLabel: `${name}${mis ? ` (${mis})` : ''}`,
@@ -850,7 +970,7 @@ export async function runCccImport(
 
   const c: Ctx = {
     runId: run.id, orgId: org.id, branchId: branch.id, actorId: opts.actorId ?? null,
-    employees: new Map(), counts: {}, rows: [], seen: new Set(),
+    employees: new Map(), counts: {}, rows: [], seen: new Set(), ordinals: new Map(), claimed: new Set(),
   };
 
   log(`Importing ${src.label}`);

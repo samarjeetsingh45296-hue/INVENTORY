@@ -29,11 +29,37 @@ export function fileSource(filePath: string, adapter = new FileAdapter()): Sheet
   };
 }
 
+/**
+ * Tab names drift: "CUG" becomes "CUG Master ", "Locker Key" becomes
+ * "Locker Keys", a typo gets fixed. The importer asks by the name it knows
+ * and the closest real tab answers - exact first, then the same letters,
+ * then the shortest tab that starts with them.
+ */
+export function resolveTabName(wanted: string, titles: string[]): string | null {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/headfhone/g, 'headphone').replace(/[^a-z0-9]/g, '');
+  if (titles.includes(wanted)) return wanted;
+  const w = norm(wanted);
+  const same = titles.find((t) => norm(t) === w);
+  if (same) return same;
+  const starts = titles.filter((t) => norm(t).startsWith(w)).sort((a, b) => a.length - b.length);
+  if (starts[0]) return starts[0];
+  const within = titles.filter((t) => w.startsWith(norm(t)) && norm(t).length >= 4).sort((a, b) => b.length - a.length);
+  return within[0] ?? null;
+}
+
 export function googleSource(spreadsheetId: string, adapter: GoogleSheetsAdapter): SheetSource {
   return {
     kind: 'google',
     label: `google-sheet:${spreadsheetId}`,
-    read: (sheetName, headerRow) => adapter.read({ spreadsheetId, sheetName, headerRow }),
+    read: async (sheetName, headerRow) => {
+      const titles = await adapter.listTabs(spreadsheetId);
+      const tab = resolveTabName(sheetName, titles);
+      if (!tab) {
+        throw new Error(`No tab like "${sheetName}" in the sheet (it has: ${titles.join(', ')})`);
+      }
+      return adapter.read({ spreadsheetId, sheetName: tab, headerRow });
+    },
   };
 }
 
