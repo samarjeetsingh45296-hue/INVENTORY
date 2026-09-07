@@ -493,6 +493,7 @@ function useFitToWidth() {
   const [scale, setScale] = useState(1);
   const [offsetX, setOffsetX] = useState(0);
   const [height, setHeight] = useState<number | undefined>(undefined);
+  const scaleRef = useRef(1);
 
   const measure = useCallback(() => {
     const o = outer.current;
@@ -505,30 +506,45 @@ function useFitToWidth() {
     // beside it - and into spare height, so it never leaves one below it
     // either. The smaller of the two fits keeps it whole. Capped, because
     // past a point the boxes just look oversized.
+    //
+    // The height on offer is measured as if the page were scrolled to the
+    // top, so scrolling never changes the answer.
     const naturalH = i.scrollHeight || 1;
-    const roomBelow = window.innerHeight - o.getBoundingClientRect().top - BOTTOM_ROOM;
+    const docTop = o.getBoundingClientRect().top + window.scrollY;
+    const roomBelow = window.innerHeight - docTop - BOTTOM_ROOM;
     const byHeight = roomBelow > 200 ? roomBelow / naturalH : Infinity;
-    const next = Math.min(MAX_SCALE, available / natural, byHeight);
+    const wanted = Math.min(MAX_SCALE, available / natural, byHeight);
+    // Hysteresis. Fitting the height can remove the page's scrollbar, which
+    // widens the card by about a percent, which would grow the map, bring
+    // the scrollbar back, and so on without end - freezing the page. A
+    // change that small is ignored, so the fit settles on the first pass.
+    const cur = scaleRef.current;
+    const next = Math.abs(wanted - cur) / cur < 0.02 ? cur : wanted;
+    scaleRef.current = next;
     setScale(next);
     // When height is the limit the map is narrower than the card: centre it.
-    setOffsetX(Math.max(0, (available - natural * next) / 2));
+    setOffsetX(Math.round(Math.max(0, (available - natural * next) / 2)));
     // The wrapper must claim the scaled height, or the transform leaves a gap.
-    setHeight(i.scrollHeight * next);
+    setHeight(Math.round(naturalH * next));
   }, []);
 
   useEffect(() => {
     measure();
-    const ro = new ResizeObserver(measure);
+    // Coalesced to one measurement per frame: the observer fires for the
+    // wrapper's own height change and must not re-enter itself.
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; measure(); });
+    };
+    const ro = new ResizeObserver(schedule);
     if (outer.current) ro.observe(outer.current);
     if (inner.current) ro.observe(inner.current);
-    window.addEventListener('resize', measure);
-    // The map's top edge moves as the tiles above it load, so re-measure
-    // on scroll too.
-    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', schedule);
     return () => {
       ro.disconnect();
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure);
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
     };
   }, [measure]);
 
