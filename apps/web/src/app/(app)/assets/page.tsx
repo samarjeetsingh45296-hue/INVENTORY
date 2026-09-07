@@ -145,7 +145,7 @@ export default function AssetsPage() {
       {!query.isLoading && query.data?.items.length === 0 ? (
         <EmptyState
           message="No assets match this view"
-          hint="Import a sheet from Sheet Sync, or add one by hand."
+          hint="Add it to the master sheet and it arrives on the next reconciliation, or add one by hand."
           action={
             canWrite ? (
               <button className="btn-primary" onClick={() => setCreating(true)}>

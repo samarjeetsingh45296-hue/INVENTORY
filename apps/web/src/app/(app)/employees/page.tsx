@@ -127,7 +127,7 @@ function Employees() {
           {!query.isLoading && query.data?.items.length === 0 ? (
             <EmptyState
               message={`No one in ${teamLabel(team)} matches`}
-              hint="Import an employee sheet from the Sheet Sync screen."
+              hint="People arrive from the master sheet on the next reconciliation."
             />
           ) : (
             <div className="card overflow-x-auto">

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  Boxes, Users, RefreshCw, ScrollText, LayoutDashboard,
+  Boxes, Users, ScrollText, LayoutDashboard,
   LogOut, Menu, X, Smartphone, KeyRound, Wrench, ShieldCheck,
   Armchair, Ticket, UserCog,
 } from 'lucide-react';
@@ -53,7 +53,6 @@ const NAV: NavGroup[] = [
     title: 'Administration',
     items: [
       { href: '/users', label: 'Users', icon: UserCog, any: ['user.read'] },
-      { href: '/sync', label: 'Sheet Sync', icon: RefreshCw, any: ['sync.read'] },
       { href: '/reconcile', label: 'Reconciliation', icon: ShieldCheck, any: ['sync.read'] },
       { href: '/audit', label: 'Change History', icon: ScrollText, any: ['audit.read'] },
     ],
