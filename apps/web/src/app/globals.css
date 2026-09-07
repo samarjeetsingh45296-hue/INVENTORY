@@ -220,12 +220,12 @@ body {
 
   /* ------------------------------------------------------------- sidebar */
   .nav-section {
-    @apply px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.1em]
+    @apply px-3 pb-1.5 pt-5 text-[11px] font-semibold uppercase tracking-[0.1em]
            text-[rgb(var(--muted))];
   }
   .nav-item {
-    @apply relative flex items-center gap-2.5 rounded-md px-2.5 py-[6px]
-           text-[13px] text-[rgb(var(--text-2))] transition-colors duration-75
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-[9px]
+           text-[14.5px] text-[rgb(var(--text-2))] transition-colors duration-75
            hover:bg-[rgb(var(--surface-3))] hover:text-[rgb(var(--text))];
   }
   .nav-item-active {

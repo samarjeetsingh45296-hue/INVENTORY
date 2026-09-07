@@ -115,7 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[13.5rem] shrink-0 flex-col
+        className={`fixed inset-y-0 left-0 z-40 flex w-[15.5rem] shrink-0 flex-col
                     border-r border-[rgb(var(--border))] bg-[rgb(var(--surface))]
                     transition-transform md:static md:translate-x-0
                     ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}
@@ -145,13 +145,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div key={g.title ?? 'top'}>
               {g.title && <p className="nav-section">{g.title}</p>}
               {!g.title && <div className="pt-3" />}
-              <div className="space-y-px">
+              <div className="space-y-0.5">
                 {g.items.map(({ href, label, icon: Icon }) => {
                   const active = pathname.startsWith(href);
                   return (
                     <Link key={href} href={href}
                           className={`nav-item ${active ? 'nav-item-active' : ''}`}>
-                      <Icon size={15} strokeWidth={active ? 2.2 : 1.8} aria-hidden />
+                      <Icon size={18} strokeWidth={active ? 2.2 : 1.8} aria-hidden />
                       {label}
                     </Link>
                   );
