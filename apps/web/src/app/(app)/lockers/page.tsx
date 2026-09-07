@@ -64,10 +64,10 @@ export default function LockersPage() {
           />
         </div>
         <select className="input max-w-[11rem]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-          <option value="">All statuses</option>
-          {['AVAILABLE', 'ALLOCATED', 'UNDER_MAINTENANCE', 'DAMAGED', 'RETIRED'].map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, ' ').toLowerCase()}</option>
-          ))}
+          <option value="">All keys</option>
+          <option value="ALLOCATED">Allocated</option>
+          <option value="AVAILABLE">Available</option>
+          <option value="RETURNED">Returned</option>
         </select>
       </div>
 
