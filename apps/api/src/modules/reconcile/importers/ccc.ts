@@ -807,7 +807,13 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
     const receivedBack = toDate(r['Received Date']);
     const returned = toDate(r['Return Date']);
     const note = S(r['Note']);
-    const repaired = /repair/i.test(note) || receivedBack !== null || returned !== null;
+    // Repaired only when the sheet says so: a "Repaired" note or a Return
+    // date. A Received date alone means the phone has come in, not that it
+    // is fixed.
+    const repaired = (/repaired/i.test(note) && !/not\s*repaired/i.test(note)) || returned !== null;
+    // The row's own date: given for repair, else received; today only when
+    // the row has no date at all, so the ticket keeps one identity.
+    const reportedAt = given ?? receivedBack ?? new Date();
     const price = Number(digits(r['Price'])) || null;
     const department = S(r['Department']) || null;
     const model = S(r['Phone Model']) || null;
@@ -827,10 +833,19 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
 
     // A ticket is the phone plus the day it was given for repair, not its
     // row; tickets from before that carry RPR-CCC-<row> and are adopted.
-    const stamp = (given ?? new Date()).toISOString().slice(0, 10).replace(/-/g, '');
+    const stamp = reportedAt.toISOString().slice(0, 10).replace(/-/g, '');
     const ticketNo = `RPR-${(imei || 'NOIMEI').slice(-8)}-${stamp}`;
     const existingTicket =
       (await prisma.repairTicket.findFirst({ where: { ticketNo, deletedAt: undefined } })) ??
+      // Undated rows used to be stamped with the day of the run; adopt that
+      // ticket for the same phone rather than creating another.
+      (given ? null : await prisma.repairTicket.findFirst({
+        where: {
+          assetId, deletedAt: undefined, sentToVendorAt: null,
+          receivedBackAt: receivedBack ?? undefined,
+          ticketNo: { startsWith: `RPR-${(imei || 'NOIMEI').slice(-8)}-` },
+        },
+      })) ??
       (await prisma.repairTicket.findFirst({
         where: {
           assetId, deletedAt: undefined, ticketNo: { startsWith: 'RPR-CCC-' },
@@ -842,7 +857,7 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
       reporterName: name || null,
       reportedById: reporterId && reporterId !== 'dry-run' ? reporterId : null,
       department,
-      reportedAt: given ?? new Date(),
+      reportedAt,
       faultDescription: fault || 'Not recorded in the source sheet',
       status: repaired ? RepairStatus.REPAIRED : RepairStatus.IN_PROGRESS,
       sentToVendorAt: given,
