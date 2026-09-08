@@ -83,6 +83,8 @@ export interface ResolvedSources {
   reason: string | null;
   ccc: SheetSource | null;
   wingwise: SheetSource | null;
+  /** The employee master (TL Attendance workbook); Google only. */
+  master: SheetSource | null;
 }
 
 export function googleConfigured(): boolean {
@@ -144,6 +146,7 @@ export async function resolveSources(
   const cccId = process.env.SHEET_CONTACT_CENTER_ID;
   const wingId = process.env.SHEET_WINGWISE_ID;
 
+  const masterId = process.env.SHEET_MASTER_ID;
   if (googleConfigured()) {
     return {
       connected: true,
@@ -151,6 +154,7 @@ export async function resolveSources(
       reason: null,
       ccc: cccId ? googleSource(cccId, sheets) : null,
       wingwise: wingId ? googleSource(wingId, sheets) : null,
+      master: masterId ? googleSource(masterId, sheets) : null,
     };
   }
 
@@ -174,6 +178,7 @@ export async function resolveSources(
         reason: problems.length ? problems.join(' | ') : null,
         ccc: cccOk ? fileSource(cccOk) : fallback.ccc,
         wingwise: wingOk ? fileSource(wingOk) : fallback.wingwise,
+        master: null,
       };
     }
     const why = [
@@ -221,6 +226,7 @@ async function localFiles(prisma: PrismaClient): Promise<ResolvedSources> {
     reason: null,
     ccc,
     wingwise,
+    master: null,
   };
 }
 

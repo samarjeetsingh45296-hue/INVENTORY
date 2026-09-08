@@ -9,6 +9,7 @@ import { GoogleSheetsAdapter } from '../sync/adapters/google-sheets.adapter';
 import { keepCopy, resolveSources } from './sheet-source';
 import { runCccImport } from './importers/ccc';
 import { runWingwiseImport } from './importers/wingwise';
+import { runMasterImport } from './importers/master';
 
 /** One exception list on the dashboard: how many, and the first few. */
 export interface Finding {
@@ -103,6 +104,18 @@ export class ReconcileService {
       let seenAssetKeys: Set<string> | null = null;
       let cccRunId: string | null = null;
       let wingRunId: string | null = null;
+
+      // The employee master first, so levels and who is on staff are right
+      // before assets are attached to people.
+      if (sources.master) {
+        try {
+          const r = await runMasterImport(this.prisma, sources.master, { log });
+          summary.master = { ...r.counts, onRoster: r.onRoster.size, left: r.left.size, tabsFailed: r.tabsFailed };
+          if (r.tabsFailed.length) problems.push(`Employee master: ${r.tabsFailed.join('; ')}`);
+        } catch (err) {
+          problems.push(`Employee master could not be read: ${(err as Error).message}`);
+        }
+      }
 
       if (sources.ccc) {
         try {
@@ -351,6 +364,15 @@ export class ReconcileService {
         AND EXISTS (SELECT 1 FROM workstation_allocations wa WHERE wa."workstationId" = w.id)
         AND NOT EXISTS (SELECT 1 FROM workstation_allocations wa WHERE wa."workstationId" = w.id AND wa.status = 'ACTIVE')
       LIMIT ${CAP}`));
+
+    // People the master says have left, still holding equipment.
+    out.assetsHeldByExEmployees = finding(await q(`
+      SELECT e."fullName" AS name, e."employeeCode" AS code, e.level,
+             string_agg(c.name || ' (' || a."assetTag" || ')', ', ' ORDER BY c.name) AS holding, count(*)::int AS items
+      FROM employees e JOIN asset_allocations al ON al."employeeId" = e.id AND al.status = 'ACTIVE' AND al."deletedAt" IS NULL
+      JOIN assets a ON a.id = al."assetId" AND a."deletedAt" IS NULL JOIN asset_categories c ON c.id = a."categoryId"
+      WHERE e."deletedAt" IS NULL AND e."employmentStatus" IN ('RESIGNED', 'TERMINATED', 'ABSCONDED', 'RETIRED')
+      GROUP BY e.id ORDER BY count(*) DESC, e."fullName" LIMIT ${CAP}`));
 
     out.missingEmployees = finding(await q(`
       SELECT al."holderLabel" AS name, count(*)::int AS assets

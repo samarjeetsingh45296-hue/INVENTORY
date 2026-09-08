@@ -52,6 +52,7 @@ const CHECKS: Array<{ key: string; title: string; hint: string; tone: 'bad' | 'w
   { key: 'unassignedAssets', title: 'Unassigned assets', hint: 'In stock, held by no one', tone: 'info' },
   { key: 'employeesMissingEquipment', title: 'Employees with missing equipment', hint: 'Active people holding nothing', tone: 'warn' },
   { key: 'employeesWithMultipleDevices', title: 'Employees with multiple devices', hint: 'More than one laptop or desktop', tone: 'info' },
+  { key: 'assetsHeldByExEmployees', title: 'Equipment held by people who left', hint: "On the master sheet's Ex-Employee tab, still holding items", tone: 'bad' },
   { key: 'missingModelNumbers', title: 'Missing model numbers', hint: 'Laptops, desktops, monitors, headphones, printers without a model', tone: 'warn' },
   { key: 'missingSerialNumbers', title: 'Missing serial numbers', hint: 'Laptops, desktops, monitors, printers without a serial', tone: 'warn' },
   { key: 'missingAssetIds', title: 'Missing asset IDs', hint: 'Records without a tag', tone: 'bad' },
