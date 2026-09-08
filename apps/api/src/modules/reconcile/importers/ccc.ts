@@ -777,9 +777,10 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
 
   for (const row of table.rows) {
     const r = row.raw;
-    const name = S(r['BDE Name']);
+    const name = S(r['BDE Name']).replace(/\s+/g, ' ');
     const fault = S(r['Damage']);
     const imei = digits(r['IMEI 1']);
+    const imei2 = digits(r['IMEI 2']) || null;
     if (!name && !fault) { bump(c, 'repairBlank'); continue; }
 
     let assetId: string | null = null;
@@ -800,38 +801,65 @@ async function importRepairs(c: Ctx, src: SheetSource): Promise<void> {
     }
     if (!assetId) { bump(c, 'rowsInvalid'); continue; }
 
-    const received = toDate(r['Received Date']) ?? toDate(r['Return Date']);
+    // The sheet's three dates, each kept as its own: given for repair,
+    // received back, returned to the person.
+    const given = toDate(r['Given Date']);
+    const receivedBack = toDate(r['Received Date']);
+    const returned = toDate(r['Return Date']);
     const note = S(r['Note']);
-    const repaired = /repair/i.test(note) || received !== null;
+    const repaired = /repair/i.test(note) || receivedBack !== null || returned !== null;
     const price = Number(digits(r['Price'])) || null;
+    const department = S(r['Department']) || null;
+    const model = S(r['Phone Model']) || null;
+    const reporterId = name ? c.employees.get(normName(name)) ?? null : null;
 
     if (DRY) { bump(c, 'repairsCreated'); bump(c, 'rowsImported'); continue; }
 
-    // Derived from the source row, so a re-run finds the ticket it already
-    // created instead of colliding on a counter that restarts every run.
-    const ticketNo = `RPR-CCC-${String(row.rowNumber).padStart(4, '0')}`;
-    const existingTicket = await prisma.repairTicket.findFirst({
-      where: { ticketNo, deletedAt: undefined },
-    });
-    if (existingTicket) { bump(c, 'repairsUnchanged'); continue; }
+    // The second IMEI lives on the phone itself.
+    if (imei2) {
+      const asset = await prisma.asset.findFirst({ where: { id: assetId }, select: { specs: true, model: true } });
+      const specs = ((asset?.specs as Record<string, unknown> | null) ?? {});
+      const patch: Record<string, unknown> = {};
+      if (specs.imei2 !== imei2) patch.specs = { ...specs, imei2 };
+      if (!asset?.model && model) patch.model = model;
+      if (Object.keys(patch).length) await prisma.asset.update({ where: { id: assetId }, data: patch });
+    }
 
-    await prisma.repairTicket.create({
-      data: {
-        ticketNo,
-        assetId,
-        reportedAt: toDate(r['Given Date']) ?? new Date(),
-        faultDescription: fault || 'Not recorded in the source sheet',
-        status: repaired ? RepairStatus.REPAIRED : RepairStatus.IN_PROGRESS,
-        sentToVendorAt: toDate(r['Given Date']),
-        receivedBackAt: received,
-        actualCost: price,
-        chargedToEmployee: /yes/i.test(S(r['Deduction'])),
-        resolution: note || null,
-        closedAt: repaired ? received : null,
-        createdById: c.actorId,
-      },
-    });
-    bump(c, 'repairsCreated');
+    // A ticket is the phone plus the day it was given for repair, not its
+    // row; tickets from before that carry RPR-CCC-<row> and are adopted.
+    const stamp = (given ?? new Date()).toISOString().slice(0, 10).replace(/-/g, '');
+    const ticketNo = `RPR-${(imei || 'NOIMEI').slice(-8)}-${stamp}`;
+    const existingTicket =
+      (await prisma.repairTicket.findFirst({ where: { ticketNo, deletedAt: undefined } })) ??
+      (await prisma.repairTicket.findFirst({
+        where: {
+          assetId, deletedAt: undefined, ticketNo: { startsWith: 'RPR-CCC-' },
+          ...(given ? { reportedAt: given } : {}),
+        },
+      }));
+
+    const data = {
+      reporterName: name || null,
+      reportedById: reporterId && reporterId !== 'dry-run' ? reporterId : null,
+      department,
+      reportedAt: given ?? new Date(),
+      faultDescription: fault || 'Not recorded in the source sheet',
+      status: repaired ? RepairStatus.REPAIRED : RepairStatus.IN_PROGRESS,
+      sentToVendorAt: given,
+      receivedBackAt: receivedBack,
+      actualCost: price,
+      chargedToEmployee: /yes/i.test(S(r['Deduction'])),
+      resolution: note || null,
+      closedAt: returned ?? (repaired ? receivedBack : null),
+    };
+
+    if (existingTicket) {
+      await prisma.repairTicket.update({ where: { id: existingTicket.id }, data: { ...data, ticketNo } });
+      bump(c, 'repairsUpdated');
+    } else {
+      await prisma.repairTicket.create({ data: { ticketNo, assetId, ...data, createdById: c.actorId } });
+      bump(c, 'repairsCreated');
+    }
     stage(c, 'Repair', row.rowNumber, r, SyncRowStatus.IMPORTED, 'RepairTicket', assetId, []);
     bump(c, 'rowsImported');
   }

@@ -36,6 +36,8 @@ class RepairsController {
         ? {
             OR: [
               { ticketNo: { contains: search, mode: 'insensitive' } },
+              { reporterName: { contains: search, mode: 'insensitive' } },
+              { department: { contains: search, mode: 'insensitive' } },
               { faultDescription: { contains: search, mode: 'insensitive' } },
               { resolution: { contains: search, mode: 'insensitive' } },
               { asset: { assetTag: { contains: search, mode: 'insensitive' } } },
@@ -52,12 +54,12 @@ class RepairsController {
         include: {
           asset: {
             select: {
-              id: true, assetTag: true, model: true, serialNumber: true,
+              id: true, assetTag: true, model: true, serialNumber: true, specs: true,
               category: { select: { name: true } },
             },
           },
           vendor: { select: { name: true } },
-          reportedBy: { select: { fullName: true, employeeCode: true, level: true} },
+          reportedBy: { select: { id: true, fullName: true, employeeCode: true, level: true } },
         },
         orderBy: { reportedAt: 'desc' },
         take,
@@ -70,6 +72,8 @@ class RepairsController {
       // Decimal does not survive JSON serialisation.
       items: items.map((t) => ({
         ...t,
+        // The phone's second IMEI, as the Repair tab records it.
+        imei2: ((t.asset?.specs as Record<string, unknown> | null)?.imei2 as string | undefined) ?? null,
         estimatedCost: t.estimatedCost ? Number(t.estimatedCost) : null,
         actualCost: t.actualCost ? Number(t.actualCost) : null,
         recoveryAmount: t.recoveryAmount ? Number(t.recoveryAmount) : null,

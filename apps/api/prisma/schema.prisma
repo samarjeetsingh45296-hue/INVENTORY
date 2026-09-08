@@ -1046,6 +1046,10 @@ model RepairTicket {
   reportedById   String?  @db.Uuid
   reportedBy     Employee? @relation("RepairReporter", fields: [reportedById], references: [id], onDelete: Restrict)
   reportedAt DateTime @default(now()) @db.Timestamptz(3)
+  /// The person named on the sheet's Repair tab (BDE Name), kept even when
+  /// no employee record matches, and their department as written there.
+  reporterName   String?
+  department     String?
   faultCategory  String?
   faultDescription String
 

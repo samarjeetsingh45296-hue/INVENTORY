@@ -1,23 +1,31 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Search, Wrench } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard } from '@/components/ui';
+import { PageHeader, StatusBadge, ErrorNote, EmptyState, TableSkeleton, StatCard, Person } from '@/components/ui';
 
+/** One repair, with the same columns the sheet's Repair tab carries. */
 interface Row {
   id: string;
   ticketNo: string;
   status: string;
+  reporterName: string | null;
+  department: string | null;
   faultDescription: string;
   resolution: string | null;
   reportedAt: string;
+  sentToVendorAt: string | null;
   receivedBackAt: string | null;
+  closedAt: string | null;
   actualCost: number | null;
   chargedToEmployee: boolean;
+  imei2: string | null;
+  reportedBy: { id: string; fullName: string; employeeCode: string; level: string | null } | null;
   asset: { id: string; assetTag: string; model: string | null; serialNumber: string | null; category: { name: string } } | null;
 }
 interface Page { items: Row[]; page: number; total: number; totalPages: number }
@@ -26,6 +34,8 @@ const NEXT_STATUS = [
   'REPORTED', 'APPROVED', 'SENT_TO_VENDOR', 'IN_PROGRESS', 'AWAITING_PARTS',
   'REPAIRED', 'RETURNED_TO_STOCK', 'UNREPAIRABLE', 'CANCELLED',
 ];
+
+const day = (iso: string | null) => (iso ? format(new Date(iso), 'd MMM yy') : '-');
 
 export default function RepairsPage() {
   const { can } = useAuth();
@@ -56,19 +66,21 @@ export default function RepairsPage() {
   });
 
   const spend = (q.data?.items ?? []).reduce((sum, r) => sum + (r.actualCost ?? 0), 0);
+  const canMove = can('repair.update');
+  const cols = 13 + (canMove ? 1 : 0);
 
   return (
     <>
       <PageHeader
         title="Repairs"
-        description="Equipment sent for repair, what it cost, and whether it came back."
+        description="Phones sent for repair, as the sheet's Repair tab records them: who, which phone, what was wrong, the dates, and the cost."
       />
 
       <div className="mb-3 grid gap-2 sm:grid-cols-3">
         <StatCard label="Tickets" value={q.data?.total ?? '-'} />
         <StatCard
           label="Still open (this page)"
-          value={(q.data?.items ?? []).filter((r) => !['RETURNED_TO_STOCK', 'CANCELLED', 'UNREPAIRABLE'].includes(r.status)).length}
+          value={(q.data?.items ?? []).filter((r) => !['REPAIRED', 'RETURNED_TO_STOCK', 'CANCELLED', 'UNREPAIRABLE'].includes(r.status)).length}
           tone="warn"
         />
         <StatCard label="Spend (this page)" value={spend ? `Rs ${spend.toLocaleString('en-IN')}` : '-'} />
@@ -79,7 +91,7 @@ export default function RepairsPage() {
           <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgb(var(--muted))]" />
           <input
             className="input pl-7"
-            placeholder="Ticket, fault, asset tag or IMEI"
+            placeholder="Name, IMEI, phone model, damage or department"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
@@ -97,48 +109,49 @@ export default function RepairsPage() {
         <EmptyState message="No repair tickets match" />
       ) : (
         <div className="card overflow-x-auto">
-          <table className="table" style={{ minWidth: '58rem' }}>
+          <table className="table" style={{ minWidth: '96rem' }}>
             <thead>
               <tr>
-                <th className="th">Ticket</th>
-                <th className="th">Asset</th>
-                <th className="th">Fault</th>
+                <th className="th">BDE name</th>
+                <th className="th">IMEI 1</th>
+                <th className="th">IMEI 2</th>
+                <th className="th">Phone model</th>
+                <th className="th">Department</th>
+                <th className="th">Damage</th>
+                <th className="th">Given date</th>
+                <th className="th">Received date</th>
+                <th className="th">Return date</th>
+                <th className="th">Note</th>
+                <th className="th">Deduction</th>
+                <th className="th num">Price</th>
                 <th className="th">Status</th>
-                <th className="th">Reported</th>
-                <th className="th">Back</th>
-                <th className="th num">Cost</th>
-                {can('repair.update') && <th className="th">Move to</th>}
+                {canMove && <th className="th">Move to</th>}
               </tr>
             </thead>
-            {q.isLoading ? <TableSkeleton rows={8} cols={8} /> : (
+            {q.isLoading ? <TableSkeleton rows={8} cols={cols} /> : (
               <tbody>
                 {(q.data?.items ?? []).map((r) => (
                   <tr key={r.id} className="row">
-                    <td className="td font-medium text-[rgb(var(--text))]">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Wrench size={12} className="text-[rgb(var(--muted))]" />
-                        {r.ticketNo}
-                      </span>
+                    <td className="td whitespace-nowrap font-medium text-[rgb(var(--text))]">
+                      {r.reportedBy ? (
+                        <Link href={`/employees/${r.reportedBy.id}`} className="link">
+                          <Person name={r.reportedBy.fullName} level={r.reportedBy.level} />
+                        </Link>
+                      ) : (r.reporterName ?? '-')}
                     </td>
-                    <td className="td">
-                      {r.asset ? (
-                        <>
-                          <span className="font-medium text-[rgb(var(--text))]">{r.asset.assetTag}</span>
-                          <div className="text-[11px] text-[rgb(var(--muted))]">{r.asset.model ?? r.asset.category.name}</div>
-                        </>
-                      ) : '-'}
-                    </td>
-                    <td className="td max-w-[16rem] truncate" title={r.faultDescription}>{r.faultDescription}</td>
+                    <td className="td whitespace-nowrap font-mono text-[12.5px]">{r.asset?.serialNumber ?? '-'}</td>
+                    <td className="td whitespace-nowrap font-mono text-[12.5px]">{r.imei2 ?? '-'}</td>
+                    <td className="td whitespace-nowrap">{r.asset?.model ?? r.asset?.category.name ?? '-'}</td>
+                    <td className="td whitespace-nowrap">{r.department ?? '-'}</td>
+                    <td className="td max-w-[18rem]" title={r.faultDescription}>{r.faultDescription}</td>
+                    <td className="td whitespace-nowrap">{day(r.sentToVendorAt ?? r.reportedAt)}</td>
+                    <td className="td whitespace-nowrap">{day(r.receivedBackAt)}</td>
+                    <td className="td whitespace-nowrap">{day(r.closedAt)}</td>
+                    <td className="td max-w-[14rem]" title={r.resolution ?? ''}>{r.resolution ?? '-'}</td>
+                    <td className="td">{r.chargedToEmployee ? <span className="badge-warn">yes</span> : <span className="text-[rgb(var(--muted))]">-</span>}</td>
+                    <td className="td num">{r.actualCost ? r.actualCost.toLocaleString('en-IN') : '-'}</td>
                     <td className="td"><StatusBadge status={r.status} /></td>
-                    <td className="td whitespace-nowrap">{format(new Date(r.reportedAt), 'd MMM yy')}</td>
-                    <td className="td whitespace-nowrap">
-                      {r.receivedBackAt ? format(new Date(r.receivedBackAt), 'd MMM yy') : '-'}
-                    </td>
-                    <td className="td num">
-                      {r.actualCost ? r.actualCost.toLocaleString('en-IN') : '-'}
-                      {r.chargedToEmployee && <div className="text-[10px] text-[rgb(var(--warn))]">recovered</div>}
-                    </td>
-                    {can('repair.update') && (
+                    {canMove && (
                       <td className="td">
                         <select
                           className="input"
@@ -159,6 +172,16 @@ export default function RepairsPage() {
               </tbody>
             )}
           </table>
+        </div>
+      )}
+
+      {q.data && q.data.totalPages > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12px]">
+          <p className="text-[rgb(var(--muted))]">{q.data.total} tickets - page {q.data.page} of {q.data.totalPages}</p>
+          <div className="flex gap-1.5">
+            <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <button className="btn-ghost" disabled={page >= q.data.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+          </div>
         </div>
       )}
     </>
