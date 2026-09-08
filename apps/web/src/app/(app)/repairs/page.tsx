@@ -228,7 +228,8 @@ export default function RepairsPage() {
                       <td className="td">
                         {canEdit ? (
                           <select
-                            className="input"
+                            className="input rp-status"
+                            data-repaired={repaired ? 'yes' : 'no'}
                             style={{ maxWidth: '9.5rem' }}
                             value={repaired ? 'yes' : 'no'}
                             disabled={update.isPending}

@@ -1285,3 +1285,12 @@ select.fv-input { appearance: auto; color-scheme: dark; }
   transition: background 0.15s ease;
 }
 .acct-signout:hover { background: rgb(var(--bad-bg)); }
+
+/* Repairs: the status select turns green once a phone is repaired. */
+.rp-status[data-repaired="yes"] {
+  color: rgb(var(--ok));
+  background-color: rgb(var(--ok-bg));
+  border-color: rgb(var(--ok) / 0.45);
+  font-weight: 600;
+}
+.rp-status[data-repaired="yes"] option { color: rgb(var(--text)); background-color: rgb(var(--surface)); font-weight: 400; }
