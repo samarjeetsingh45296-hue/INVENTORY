@@ -77,14 +77,14 @@ export default function RepairsPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [openOnly, setOpenOnly] = useState(false);
+  const [repaired, setRepaired] = useState<'' | 'yes' | 'no'>('');
   const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
 
   const params = new URLSearchParams({
     page: String(page), pageSize: '50',
-    ...(search ? { search } : {}), ...(openOnly ? { openOnly: 'true' } : {}),
+    ...(search ? { search } : {}), ...(repaired ? { repaired } : {}),
   });
 
   const q = useQuery({
@@ -149,10 +149,18 @@ export default function RepairsPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        <label className="flex select-none items-center gap-1.5 text-[12px] text-[rgb(var(--text-2))]">
-          <input type="checkbox" checked={openOnly} onChange={(e) => { setOpenOnly(e.target.checked); setPage(1); }} />
-          Not repaired only
-        </label>
+        <select
+          className="input rp-status"
+          data-repaired={repaired}
+          style={{ maxWidth: '11rem' }}
+          value={repaired}
+          onChange={(e) => { setRepaired(e.target.value as '' | 'yes' | 'no'); setPage(1); }}
+          aria-label="Status"
+        >
+          <option value="">All statuses</option>
+          <option value="yes">Repaired</option>
+          <option value="no">Not repaired</option>
+        </select>
       </div>
 
       {q.isError && <div className="mb-3"><ErrorNote error={q.error} /></div>}

@@ -39,6 +39,8 @@ import type { Principal } from '@inventory/shared';
 
 /** Statuses that mean the ticket is finished. */
 const CLOSED = [RepairStatus.RETURNED_TO_STOCK, RepairStatus.CANCELLED, RepairStatus.UNREPAIRABLE];
+/** Statuses the page shows as "Repaired". */
+const REPAIRED_STATES = [RepairStatus.REPAIRED, RepairStatus.RETURNED_TO_STOCK];
 
 @ApiTags('repairs')
 @Controller('repairs')
@@ -56,11 +58,15 @@ export class RepairsController {
     @Query('search') search?: string,
     @Query('status') status?: RepairStatus,
     @Query('openOnly') openOnly?: string,
+    @Query('repaired') repaired?: string,
   ) {
     const take = Math.min(Number(pageSize) || 50, 200);
     const where: Prisma.RepairTicketWhereInput = {
       ...(status ? { status } : {}),
       ...(openOnly === 'true' ? { status: { notIn: CLOSED } } : {}),
+      // The page's Status filter: repaired or not, the only two states it shows.
+      ...(repaired === 'yes' ? { status: { in: REPAIRED_STATES } } : {}),
+      ...(repaired === 'no' ? { status: { notIn: REPAIRED_STATES } } : {}),
       ...(search
         ? {
             OR: [
